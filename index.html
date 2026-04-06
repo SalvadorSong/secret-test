@@ -256,14 +256,15 @@
       hipHistory.push({ x: hip.x, y: hip.y, t: performance.now() });
       if (hipHistory.length > 30) hipHistory.shift(); // keep last 30 frames
 
-      // Determine state based on knee angle
-      // Standing: knee angle > 150°
-      // Sitting: knee angle < 120°
+      // Determine state based on hip angle (shoulder-hip-knee)
+      // This way ankle doesn't need to be visible
+      // Standing: hip angle > 160°
+      // Sitting: hip angle < 120°
       // Transitioning: in between
       let newState;
-      if (kneeAng > 150) {
+      if (hipAng > 160) {
         newState = "standing";
-      } else if (kneeAng < 120) {
+      } else if (hipAng < 120) {
         newState = "sitting";
       } else {
         newState = "transitioning";
