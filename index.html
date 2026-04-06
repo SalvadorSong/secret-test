@@ -120,6 +120,7 @@
     </div>
 
     <div id="tree">🌱</div>
+    <button id="switchCamBtn" onclick="switchCamera()" style="position:absolute;top:10px;right:10px;z-index:10;padding:8px 15px;border:none;border-radius:8px;background:#e94560;color:white;font-size:14px;">Switch Camera</button>
     <div id="musicFeedback">Ready...</div>
   </div>
 
@@ -210,22 +211,41 @@
     }
 
     // ============ CAMERA ============
+    let useFrontCamera = true;
     async function startCamera() {
       video = document.getElementById("videoCanvas");
       canvas = document.getElementById("overlay");
       ctx = canvas.getContext("2d");
       drawingUtils = new DrawingUtils(ctx);
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720, facingMode: "user" }
-      });
-      video.srcObject = stream;
+      try {
+        debugLog("Opening camera...");
+        const facingMode = useFrontCamera ? "user" : "environment";
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: facingMode }
+        });
+        video.srcObject = stream;
+        debugLog("Camera opened! Waiting for video...");
 
-      video.addEventListener("loadedmetadata", () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        detectPose();
-      });
+        video.addEventListener("loadedmetadata", () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          debugLog("Video ready: " + video.videoWidth + "x" + video.videoHeight + " | Detecting...");
+          detectPose();
+        });
+      } catch(e) {
+        debugLog("Camera error: " + e.message);
+      }
+    }
+
+    // Switch camera
+    async function switchCamera() {
+      useFrontCamera = !useFrontCamera;
+      // Stop current stream
+      if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+      }
+      startCamera();
     }
 
     // ============ ANGLE CALCULATION ============
