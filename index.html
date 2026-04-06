@@ -153,21 +153,34 @@
     let noteIndex = 0;
     let lastNoteTime = 0;
 
+    // ============ DEBUG ============
+    function debugLog(msg) {
+      document.getElementById("musicFeedback").textContent = msg;
+      console.log(msg);
+    }
+
     // ============ INIT MODEL ============
     async function initPose() {
-      const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-      );
-      poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-          delegate: "GPU"
-        },
-        runningMode: "VIDEO",
-        numPoses: 1
-      });
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("startBtn").textContent = "Start Game";
+      try {
+        debugLog("Loading WASM...");
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+        );
+        debugLog("Loading model...");
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+          },
+          runningMode: "VIDEO",
+          numPoses: 1
+        });
+        debugLog("Model ready!");
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("startBtn").textContent = "Start Game";
+      } catch(e) {
+        debugLog("Error: " + e.message);
+        console.error(e);
+      }
     }
     initPose();
 
@@ -342,18 +355,27 @@
     }
 
     // ============ MAIN LOOP ============
+    let frameCount = 0;
+    let detectCount = 0;
     async function detectPose() {
       if (!poseLandmarker || !video || video.paused) return;
 
       const now = performance.now();
       if (lastVideoTime !== video.currentTime) {
         lastVideoTime = video.currentTime;
+        frameCount++;
         const results = poseLandmarker.detectForVideo(video, now);
 
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // Debug: show frame count every 30 frames
+        if (frameCount % 30 === 0 && detectCount === 0) {
+          debugLog("Frames: " + frameCount + " | No body detected - show full body");
+        }
+
         if (results.landmarks && results.landmarks.length > 0) {
+          detectCount++;
           const landmarks = results.landmarks[0];
 
           // Draw skeleton
