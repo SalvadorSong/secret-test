@@ -102,6 +102,7 @@
     <p>Demo 1: Sit-Stand Rhythm Tree</p>
     <p style="margin-top:8px; color:#4ecca3;">Stand up and sit down to play music!</p>
     <button id="startBtn" disabled>Loading Model...</button>
+    <p id="debugInfo" style="margin-top:15px; color:#e94560; font-size:14px;">Initializing...</p>
   </div>
 
   <div id="gameArea">
@@ -155,8 +156,11 @@
 
     // ============ DEBUG ============
     function debugLog(msg) {
-      document.getElementById("musicFeedback").textContent = msg;
-      console.log(msg);
+      const el = document.getElementById("debugInfo");
+      if (el) el.textContent = msg;
+      const mf = document.getElementById("musicFeedback");
+      if (mf) mf.textContent = msg;
+      console.log("[BBS] " + msg);
     }
 
     // ============ INIT MODEL ============
