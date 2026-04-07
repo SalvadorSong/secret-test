@@ -225,14 +225,24 @@
       drawingUtils = new DrawingUtils(ctx);
 
       try {
-        debugLog("Opening camera...");
+        debugLog("Opening " + (useFrontCamera ? "front" : "rear") + " camera...");
         const facingMode = useFrontCamera ? "user" : "environment";
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 640 },
             height: { ideal: 480 },
-            facingMode: facingMode
+            facingMode: { exact: facingMode }
           }
+        }).catch(() => {
+          // Fallback: if exact fails, try without exact constraint
+          debugLog("Exact camera failed, trying fallback...");
+          return navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              facingMode: facingMode
+            }
+          });
         });
 
         // Attach listener BEFORE setting srcObject to avoid race condition
