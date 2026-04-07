@@ -53,12 +53,18 @@
       height: 100%;
       object-fit: cover;
     }
+    #videoCanvas.front-camera {
+      transform: scaleX(-1);
+    }
     #overlay {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
+    }
+    #overlay.front-camera {
+      transform: scaleX(-1);
     }
     #hud {
       position: absolute;
@@ -239,6 +245,15 @@
         });
 
         video.srcObject = stream;
+        // Mirror front camera (selfie view)
+        if (useFrontCamera) {
+          video.classList.add("front-camera");
+          canvas.classList.add("front-camera");
+        } else {
+          video.classList.remove("front-camera");
+          canvas.classList.remove("front-camera");
+        }
+
         // Explicitly play — don't rely on autoplay attribute (mobile may ignore it)
         await video.play();
         debugLog("Camera opened and playing!");
