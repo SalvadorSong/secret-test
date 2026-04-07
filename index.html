@@ -75,7 +75,7 @@
     #hud .value { color: #e94560; font-weight: bold; font-size: 18px; }
     #tree {
       position: absolute;
-      bottom: 20px;
+      bottom: 80px;
       right: 30px;
       z-index: 10;
       text-align: center;
@@ -106,7 +106,7 @@
   </div>
 
   <div id="gameArea">
-    <video id="videoCanvas" playsinline autoplay muted></video>
+    <video id="videoCanvas" playsinline autoplay muted width="640" height="480"></video>
     <canvas id="overlay"></canvas>
 
     <div id="hud">
@@ -120,7 +120,7 @@
     </div>
 
     <div id="tree">🌱</div>
-    <button id="switchCamBtn" onclick="switchCamera()" style="position:absolute;top:10px;right:10px;z-index:10;padding:8px 15px;border:none;border-radius:8px;background:#e94560;color:white;font-size:14px;">Switch Camera</button>
+    <button id="switchCamBtn" style="position:absolute;top:10px;right:10px;z-index:10;padding:8px 15px;border:none;border-radius:8px;background:#e94560;color:white;font-size:14px;">Switch Camera</button>
     <div id="musicFeedback">Ready...</div>
   </div>
 
@@ -139,14 +139,14 @@
     let animationId;
 
     // Game state
-    let currentState = "unknown"; // "sitting", "standing", "transitioning"
+    let currentState = "unknown";
     let previousState = "unknown";
     let transitionCount = 0;
     let standStartTime = 0;
     let sitStartTime = 0;
     let totalStandTime = 0;
     let totalSitTime = 0;
-    let hipHistory = []; // for stability calculation
+    let hipHistory = [];
     let gameStarted = false;
 
     // Audio
@@ -222,35 +222,50 @@
         debugLog("Opening camera...");
         const facingMode = useFrontCamera ? "user" : "environment";
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480, facingMode: facingMode }
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: facingMode
+          }
         });
-        video.srcObject = stream;
-        debugLog("Camera opened! Waiting for video...");
 
-        video.addEventListener("loadedmetadata", () => {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+        // Attach listener BEFORE setting srcObject to avoid race condition
+        video.addEventListener("loadeddata", function onVideoReady() {
+          video.removeEventListener("loadeddata", onVideoReady);
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
           debugLog("Video ready: " + video.videoWidth + "x" + video.videoHeight + " | Detecting...");
           detectPose();
         });
+
+        video.srcObject = stream;
+        // Explicitly play — don't rely on autoplay attribute (mobile may ignore it)
+        await video.play();
+        debugLog("Camera opened and playing!");
       } catch(e) {
         debugLog("Camera error: " + e.message);
+        console.error(e);
       }
     }
 
     // Switch camera
     async function switchCamera() {
       useFrontCamera = !useFrontCamera;
-      // Stop current stream
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
       if (video && video.srcObject) {
         video.srcObject.getTracks().forEach(t => t.stop());
       }
+      lastVideoTime = -1;
       startCamera();
     }
+    // Expose to global scope for button click
+    window.switchCamera = switchCamera;
 
     // ============ ANGLE CALCULATION ============
     function calcAngle(a, b, c) {
-      // Calculate angle at point b (in degrees)
       const ab = { x: a.x - b.x, y: a.y - b.y };
       const cb = { x: c.x - b.x, y: c.y - b.y };
       const dot = ab.x * cb.x + ab.y * cb.y;
@@ -263,8 +278,6 @@
 
     // ============ DETECT SIT/STAND ============
     function detectSitStand(landmarks) {
-      // Key landmarks:
-      // 11,12 = shoulders, 23,24 = hips, 25,26 = knees, 27,28 = ankles
       const leftShoulder = landmarks[11];
       const rightShoulder = landmarks[12];
       const leftHip = landmarks[23];
@@ -274,30 +287,20 @@
       const leftAnkle = landmarks[27];
       const rightAnkle = landmarks[28];
 
-      // Average positions
       const hip = { x: (leftHip.x + rightHip.x)/2, y: (leftHip.y + rightHip.y)/2 };
       const knee = { x: (leftKnee.x + rightKnee.x)/2, y: (leftKnee.y + rightKnee.y)/2 };
       const shoulder = { x: (leftShoulder.x + rightShoulder.x)/2, y: (leftShoulder.y + rightShoulder.y)/2 };
       const ankle = { x: (leftAnkle.x + rightAnkle.x)/2, y: (leftAnkle.y + rightAnkle.y)/2 };
 
-      // Knee angle (hip-knee-ankle)
       const kneeAng = calcAngle(hip, knee, ankle);
-      // Hip angle (shoulder-hip-knee)
       const hipAng = calcAngle(shoulder, hip, knee);
 
-      // Update HUD
       document.getElementById("hipAngle").textContent = hipAng.toFixed(1) + "°";
       document.getElementById("kneeAngle").textContent = kneeAng.toFixed(1) + "°";
 
-      // Track hip position for stability
       hipHistory.push({ x: hip.x, y: hip.y, t: performance.now() });
-      if (hipHistory.length > 30) hipHistory.shift(); // keep last 30 frames
+      if (hipHistory.length > 30) hipHistory.shift();
 
-      // Determine state based on hip angle (shoulder-hip-knee)
-      // This way ankle doesn't need to be visible
-      // Standing: hip angle > 160°
-      // Sitting: hip angle < 120°
-      // Transitioning: in between
       let newState;
       if (hipAng > 160) {
         newState = "standing";
@@ -317,7 +320,7 @@
       const avgX = recent.reduce((s,p) => s + p.x, 0) / recent.length;
       const avgY = recent.reduce((s,p) => s + p.y, 0) / recent.length;
       const variance = recent.reduce((s,p) => s + Math.pow(p.x-avgX,2) + Math.pow(p.y-avgY,2), 0) / recent.length;
-      const sway = Math.sqrt(variance) * 1000; // scale up for readability
+      const sway = Math.sqrt(variance) * 1000;
       if (sway < 2) return "Excellent";
       if (sway < 5) return "Good";
       if (sway < 10) return "Fair";
@@ -326,44 +329,33 @@
 
     // ============ MUSIC TRIGGERS ============
     function onStandUp() {
-      // Ascending scale
       const now = Tone.now();
       for (let i = 0; i < 5; i++) {
         const note = scaleNotes[(noteIndex + i) % scaleNotes.length];
         synth.triggerAttackRelease(note, "8n", now + i * 0.12);
       }
       noteIndex = (noteIndex + 2) % scaleNotes.length;
-
-      // Bass note
       bassSynth.triggerAttackRelease("C2", "2n", now);
-
-      document.getElementById("musicFeedback").textContent = "🎵 Stand Up! ↑";
+      document.getElementById("musicFeedback").textContent = "Stand Up!";
       document.getElementById("musicFeedback").style.color = "#4ecca3";
     }
 
     function onSitDown() {
-      // Descending pattern
       const now = Tone.now();
       for (let i = 0; i < 5; i++) {
         const note = scaleNotes[(noteIndex + 4 - i) % scaleNotes.length];
         synth.triggerAttackRelease(note, "8n", now + i * 0.12);
       }
-
-      // Chord
       chordSynth.triggerAttackRelease(["E3","G3","B3"], "2n", now);
-
-      document.getElementById("musicFeedback").textContent = "🎵 Sit Down ↓";
+      document.getElementById("musicFeedback").textContent = "Sit Down";
       document.getElementById("musicFeedback").style.color = "#e94560";
     }
 
     function playStabilityTone(stability) {
-      // While standing, play a gentle tone based on stability
       const now = performance.now();
-      if (now - lastNoteTime < 2000) return; // throttle
+      if (now - lastNoteTime < 2000) return;
       lastNoteTime = now;
-
       if (stability === "Excellent" || stability === "Good") {
-        // Harmonious chord
         chordSynth.triggerAttackRelease(["C4","E4","G4"], "4n");
       }
     }
@@ -382,27 +374,33 @@
     let frameCount = 0;
     let detectCount = 0;
     async function detectPose() {
-      if (!poseLandmarker || !video || video.paused) return;
+      // Always schedule next frame FIRST so the loop never dies
+      animationId = requestAnimationFrame(detectPose);
+
+      // Guard: wait until video has frame data
+      if (!poseLandmarker || !video || video.readyState < 2) return;
 
       const now = performance.now();
-      if (lastVideoTime !== video.currentTime) {
-        lastVideoTime = video.currentTime;
-        frameCount++;
+      if (lastVideoTime === video.currentTime) return;
+      lastVideoTime = video.currentTime;
+      frameCount++;
+
+      try {
         const results = poseLandmarker.detectForVideo(video, now);
 
-        // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Debug: show frame count every 30 frames
         if (frameCount % 30 === 0 && detectCount === 0) {
           debugLog("Frames: " + frameCount + " | No body detected - show full body");
         }
 
         if (results.landmarks && results.landmarks.length > 0) {
           detectCount++;
+          if (detectCount === 1) {
+            debugLog("Body detected!");
+          }
           const landmarks = results.landmarks[0];
 
-          // Draw skeleton
           drawingUtils.drawLandmarks(landmarks, {
             radius: 4,
             color: "#4ecca3",
@@ -413,7 +411,6 @@
             lineWidth: 2
           });
 
-          // Detect sit/stand
           const detection = detectSitStand(landmarks);
 
           previousState = currentState;
@@ -421,16 +418,14 @@
             currentState = detection.state;
           }
 
-          // Update state display
           document.getElementById("stateDisplay").textContent =
-            currentState === "standing" ? "Standing 🧍" :
-            currentState === "sitting" ? "Sitting 🪑" : "...";
+            currentState === "standing" ? "Standing" :
+            currentState === "sitting" ? "Sitting" : "...";
 
-          // Detect transitions
           if (previousState === "sitting" && currentState === "standing") {
             transitionCount++;
             standStartTime = now;
-            if (totalSitTime === 0 && sitStartTime > 0) {
+            if (sitStartTime > 0) {
               totalSitTime += (now - sitStartTime) / 1000;
             }
             onStandUp();
@@ -445,7 +440,6 @@
             updateTree();
           }
 
-          // Update timers
           if (currentState === "standing" && standStartTime > 0) {
             const t = totalStandTime + (now - standStartTime) / 1000;
             document.getElementById("standTime").textContent = t.toFixed(1) + "s";
@@ -455,19 +449,18 @@
             document.getElementById("sitTime").textContent = t.toFixed(1) + "s";
           }
 
-          // Stability
           const stab = calcStability();
           document.getElementById("stability").textContent = stab;
           if (currentState === "standing") {
             playStabilityTone(stab);
           }
 
-          // Update transition count display
           document.getElementById("transCount").textContent = transitionCount;
         }
+      } catch(e) {
+        console.error("[BBS] Detection error:", e);
+        debugLog("Detection error: " + e.message);
       }
-
-      animationId = requestAnimationFrame(detectPose);
     }
 
     // ============ START BUTTON ============
