@@ -1486,6 +1486,20 @@
     let pianoSynth, padSynth, bassSynth;
     const SONG_BPM = 70;
 
+    // Current chord tones for harmonic hit sounds
+    // Am F C G - each chord has 5 safe notes (triad + scale tones)
+    const chordNotes = [
+      ["A4","C5","E5","G5","B5"],  // Am
+      ["F4","A4","C5","E5","G5"],  // F
+      ["C5","E5","G5","B5","D6"],  // C
+      ["G4","B4","D5","F5","A5"],  // G
+      ["A4","C5","E5","G5","B5"],  // Am
+      ["F4","A4","C5","E5","G5"],  // F
+      ["C5","E5","G5","B5","D6"],  // C
+      ["G4","B4","D5","F5","A5"],  // G
+    ];
+    let currentBar = 0;
+
     function initAudio() {
       // Piano - main melody (direct to destination, no reverb to avoid async issues)
       pianoSynth = new Tone.PolySynth(Tone.Synth, {
@@ -1576,6 +1590,7 @@
       let barIdx = 0;
       Tone.Transport.scheduleRepeat(time => {
         const bar = barIdx % 8;
+        currentBar = bar;
         padSynth.triggerAttackRelease(chordProg[bar], "1m", time);
         bassSynth.triggerAttackRelease(bassProg[bar], "2n", time);
         bassSynth.triggerAttackRelease(bassProg[bar], "2n", time + Tone.Time("2n").toSeconds());
@@ -1598,12 +1613,28 @@
       Tone.Transport.start("+0.1");
     }
 
+    let hitNoteIdx = 0;
     function playHitSound(type) {
-      const pentatonic = ["C5", "D5", "E5", "G5", "A5", "C6"];
-      const note = pentatonic[Math.floor(Math.random() * pentatonic.length)];
+      // Pick a note from the current chord tones so it's harmonic with BGM
+      const safeNotes = chordNotes[currentBar % 8];
+      let note;
+      if (type === "left") {
+        // Left notes - lower register from chord
+        note = safeNotes[0];
+      } else if (type === "right") {
+        // Right notes - higher register from chord
+        note = safeNotes[2];
+      } else if (type === "reach") {
+        // Reach notes - top of chord
+        note = safeNotes[3];
+      } else {
+        // Step notes - ascending pattern through chord
+        note = safeNotes[hitNoteIdx % safeNotes.length];
+        hitNoteIdx++;
+      }
       if (type === "stepL" || type === "stepR") {
         stepSynth.triggerAttackRelease("C2", "8n");
-        hitSynth.triggerAttackRelease(note, "16n");
+        hitSynth.triggerAttackRelease(note, "8n");
       } else {
         hitSynth.triggerAttackRelease(note, "8n");
       }
