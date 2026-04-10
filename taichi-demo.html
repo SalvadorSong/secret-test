@@ -1533,7 +1533,6 @@
       bgPlaying = true;
 
       Tone.Transport.bpm.value = SONG_BPM;
-      Tone.Transport.start();
 
       // Chord progression (8 bars = 1 loop)
       // Am F C G | Am F C G
@@ -1590,6 +1589,13 @@
       part.loop = true;
       part.loopEnd = "8m";
       part.start(0);
+
+      // Kick off the first chord immediately for instant feedback
+      padSynth.triggerAttackRelease(chordProg[0], "1m");
+      bassSynth.triggerAttackRelease(bassProg[0], "2n");
+      pianoSynth.triggerAttackRelease("E4", "2n");
+
+      Tone.Transport.start("+0.1");
     }
 
     function playHitSound(type) {
