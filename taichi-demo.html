@@ -209,6 +209,45 @@
       letter-spacing: 1px;
     }
 
+    /* Legend */
+    #legend {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      z-index: 10;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(10px);
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-size: 12px;
+      min-width: 180px;
+    }
+    #legend .legend-title {
+      color: #d4a574;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+      font-size: 11px;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      margin: 4px 0;
+      color: #bbb;
+    }
+    .legend-icon {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      margin-right: 10px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 24px;
+      font-weight: bold;
+      color: #0a0a15;
+      font-size: 14px;
+    }
+
     /* Phase transition overlay */
     #phaseTransition {
       position: absolute;
@@ -300,6 +339,16 @@
       &nbsp;&nbsp;<span class="key">↓</span> 坐下/弯腰
     </div>
 
+    <div id="legend">
+      <div class="legend-title">音符说明 NOTES</div>
+      <div class="legend-row"><span class="legend-icon" style="background:#4ecca3;">←</span>左移重心</div>
+      <div class="legend-row"><span class="legend-icon" style="background:#4ecca3;">→</span>右移重心</div>
+      <div class="legend-row"><span class="legend-icon" style="background:#ffd700;">↓</span>前伸/弯腰</div>
+      <div class="legend-row"><span class="legend-icon" style="background:#e94560;">L</span>左脚抬起</div>
+      <div class="legend-row"><span class="legend-icon" style="background:#e94560;">R</span>右脚抬起</div>
+      <div class="legend-row"><span class="legend-icon" style="background:#a78bfa;">◉</span>单腿站立</div>
+    </div>
+
     <div id="phaseTransition">
       <div class="content">
         <h2 id="transitionTitle"></h2>
@@ -360,7 +409,7 @@
         bbs: "BBS #3 坐位平衡",
         duration: 30000, // 30s in demo
         noteTypes: ["left", "right"],
-        bpm: 50,
+        bpm: 25,
         playerPosture: "sitting"
       },
       2: {
@@ -369,7 +418,7 @@
         bbs: "BBS #2,#7,#8 站立平衡",
         duration: 30000,
         noteTypes: ["left", "right", "reach"],
-        bpm: 60,
+        bpm: 28,
         playerPosture: "standing"
       },
       3: {
@@ -378,7 +427,7 @@
         bbs: "BBS #12 交替踏步",
         duration: 30000,
         noteTypes: ["left", "right", "stepL", "stepR"],
-        bpm: 70,
+        bpm: 32,
         playerPosture: "standing"
       },
       4: {
@@ -387,7 +436,7 @@
         bbs: "BBS #14 单腿站立",
         duration: 30000,
         noteTypes: ["left", "right", "stepL", "stepR", "hold"],
-        bpm: 80,
+        bpm: 36,
         playerPosture: "standing"
       }
     };
@@ -558,7 +607,7 @@
       for (const note of notes) {
         if (!note.active) continue;
 
-        note.z += 0.00025 * speed * dt;
+        note.z += 0.00010 * speed * dt;
 
         const t = note.z;
         const noteY = horizonY + (H - horizonY) * t * t;
@@ -634,6 +683,45 @@
       drawPlayer();
     }
 
+    // Helper: draw 3D ellipsoid body part with gradient
+    function draw3DEllipse(cx, cy, rx, ry, color, highlight) {
+      const grad = gameCtx.createRadialGradient(
+        cx - rx * 0.4, cy - ry * 0.4, rx * 0.1,
+        cx, cy, rx * 1.2
+      );
+      grad.addColorStop(0, highlight);
+      grad.addColorStop(0.6, color);
+      grad.addColorStop(1, "rgba(0,0,0,0.4)");
+      gameCtx.fillStyle = grad;
+      gameCtx.beginPath();
+      gameCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      gameCtx.fill();
+    }
+
+    function draw3DCapsule(x1, y1, x2, y2, radius, color, highlight) {
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx);
+
+      gameCtx.save();
+      gameCtx.translate(x1, y1);
+      gameCtx.rotate(angle);
+
+      const grad = gameCtx.createLinearGradient(0, -radius, 0, radius);
+      grad.addColorStop(0, highlight);
+      grad.addColorStop(0.5, color);
+      grad.addColorStop(1, "rgba(0,0,0,0.3)");
+      gameCtx.fillStyle = grad;
+
+      gameCtx.beginPath();
+      gameCtx.arc(0, 0, radius, Math.PI / 2, -Math.PI / 2);
+      gameCtx.lineTo(len, -radius);
+      gameCtx.arc(len, 0, radius, -Math.PI / 2, Math.PI / 2);
+      gameCtx.lineTo(0, radius);
+      gameCtx.fill();
+      gameCtx.restore();
+    }
+
     function drawPlayer() {
       const horizonY = H * 0.35;
       const pathBottomW = W * 1.2;
@@ -649,79 +737,121 @@
       // Smooth interpolation toward target
       player.x += (player.targetX - player.x) * 0.15;
 
-      // Draw avatar (simple stick figure silhouette)
-      gameCtx.strokeStyle = "#d4a574";
-      gameCtx.fillStyle = "rgba(212,165,116,0.9)";
-      gameCtx.lineWidth = 4;
-      gameCtx.lineCap = "round";
-      gameCtx.shadowColor = "#d4a574";
-      gameCtx.shadowBlur = 15;
+      const skinColor = "#d4a574";
+      const skinHighlight = "#f5d4a8";
+      const robeColor = "#8a3a3a";
+      const robeHighlight = "#c75555";
 
-      const headR = 18;
-      const bodyLen = player.posture === "standing" ? 60 : 40;
-      const legLen = player.posture === "standing" ? 55 : 30;
-
-      // Head
+      // Soft shadow on ground
+      gameCtx.fillStyle = "rgba(0,0,0,0.4)";
       gameCtx.beginPath();
-      gameCtx.arc(playerX, playerY - bodyLen - headR, headR, 0, Math.PI * 2);
+      gameCtx.ellipse(playerX, playerY + 65, 35, 8, 0, 0, Math.PI * 2);
       gameCtx.fill();
 
-      // Body
-      gameCtx.beginPath();
-      gameCtx.moveTo(playerX, playerY - bodyLen);
-      gameCtx.lineTo(playerX, playerY);
-      gameCtx.stroke();
+      const bodyLen = player.posture === "standing" ? 75 : 50;
+      const legLen = player.posture === "standing" ? 60 : 30;
+      const headR = 16;
+      const headY = playerY - bodyLen - headR - 5;
 
-      // Arms
-      const armY = playerY - bodyLen * 0.8;
-      const armSpread = player.bending ? 30 : 20;
-      gameCtx.beginPath();
-      gameCtx.moveTo(playerX, armY);
-      gameCtx.lineTo(playerX - armSpread, armY + 25);
-      gameCtx.moveTo(playerX, armY);
-      gameCtx.lineTo(playerX + armSpread, armY + 25);
-      gameCtx.stroke();
+      if (player.posture === "sitting") {
+        // Chair behind player
+        const chairColor = "#5a4030";
+        const chairHl = "#8a6040";
+        // Seat
+        const seatGrad = gameCtx.createLinearGradient(playerX - 35, playerY, playerX + 35, playerY + 12);
+        seatGrad.addColorStop(0, chairHl);
+        seatGrad.addColorStop(1, chairColor);
+        gameCtx.fillStyle = seatGrad;
+        gameCtx.fillRect(playerX - 35, playerY + 5, 70, 12);
+        // Backrest
+        gameCtx.fillRect(playerX - 35, playerY - bodyLen, 8, bodyLen + 10);
+      }
 
       // Legs
       if (player.posture === "standing") {
-        // Left leg
         const leftLegBent = player.legLifted === "left";
-        gameCtx.beginPath();
-        gameCtx.moveTo(playerX, playerY);
-        if (leftLegBent) {
-          gameCtx.lineTo(playerX - 15, playerY + legLen * 0.4);
-        } else {
-          gameCtx.lineTo(playerX - 15, playerY + legLen);
-        }
-        gameCtx.stroke();
-
-        // Right leg
         const rightLegBent = player.legLifted === "right";
-        gameCtx.beginPath();
-        gameCtx.moveTo(playerX, playerY);
-        if (rightLegBent) {
-          gameCtx.lineTo(playerX + 15, playerY + legLen * 0.4);
-        } else {
-          gameCtx.lineTo(playerX + 15, playerY + legLen);
-        }
-        gameCtx.stroke();
+
+        // Right leg (drawn first as it's behind)
+        const rHipX = playerX + 8, rHipY = playerY;
+        const rKneeY = rightLegBent ? playerY + 15 : playerY + legLen * 0.5;
+        const rKneeX = rightLegBent ? playerX + 25 : playerX + 12;
+        const rFootY = rightLegBent ? playerY + 25 : playerY + legLen;
+        const rFootX = rightLegBent ? playerX + 30 : playerX + 14;
+        draw3DCapsule(rHipX, rHipY, rKneeX, rKneeY, 8, robeColor, robeHighlight);
+        draw3DCapsule(rKneeX, rKneeY, rFootX, rFootY, 7, robeColor, robeHighlight);
+
+        // Left leg
+        const lHipX = playerX - 8, lHipY = playerY;
+        const lKneeY = leftLegBent ? playerY + 15 : playerY + legLen * 0.5;
+        const lKneeX = leftLegBent ? playerX - 25 : playerX - 12;
+        const lFootY = leftLegBent ? playerY + 25 : playerY + legLen;
+        const lFootX = leftLegBent ? playerX - 30 : playerX - 14;
+        draw3DCapsule(lHipX, lHipY, lKneeX, lKneeY, 8, robeColor, robeHighlight);
+        draw3DCapsule(lKneeX, lKneeY, lFootX, lFootY, 7, robeColor, robeHighlight);
       } else {
-        // Sitting - draw a chair indicator
-        gameCtx.strokeStyle = "rgba(212,165,116,0.5)";
-        gameCtx.lineWidth = 3;
-        gameCtx.strokeRect(playerX - 30, playerY, 60, 35);
-        gameCtx.strokeStyle = "#d4a574";
-        gameCtx.lineWidth = 4;
-        // Legs bent
-        gameCtx.beginPath();
-        gameCtx.moveTo(playerX - 10, playerY);
-        gameCtx.lineTo(playerX - 20, playerY + 25);
-        gameCtx.moveTo(playerX + 10, playerY);
-        gameCtx.lineTo(playerX + 20, playerY + 25);
-        gameCtx.stroke();
+        // Sitting legs - bent
+        draw3DCapsule(playerX - 8, playerY, playerX - 25, playerY + 18, 8, robeColor, robeHighlight);
+        draw3DCapsule(playerX - 25, playerY + 18, playerX - 25, playerY + 38, 7, robeColor, robeHighlight);
+        draw3DCapsule(playerX + 8, playerY, playerX + 25, playerY + 18, 8, robeColor, robeHighlight);
+        draw3DCapsule(playerX + 25, playerY + 18, playerX + 25, playerY + 38, 7, robeColor, robeHighlight);
       }
 
-      gameCtx.shadowBlur = 0;
+      // Torso (robe)
+      const torsoTopY = playerY - bodyLen;
+      // Use a tapered shape - draw as filled path
+      const torsoGrad = gameCtx.createLinearGradient(playerX - 25, torsoTopY, playerX + 25, playerY);
+      torsoGrad.addColorStop(0, robeHighlight);
+      torsoGrad.addColorStop(0.5, robeColor);
+      torsoGrad.addColorStop(1, "rgba(0,0,0,0.4)");
+      gameCtx.fillStyle = torsoGrad;
+      gameCtx.beginPath();
+      gameCtx.moveTo(playerX - 18, torsoTopY);
+      gameCtx.quadraticCurveTo(playerX - 25, torsoTopY + bodyLen * 0.5, playerX - 22, playerY);
+      gameCtx.lineTo(playerX + 22, playerY);
+      gameCtx.quadraticCurveTo(playerX + 25, torsoTopY + bodyLen * 0.5, playerX + 18, torsoTopY);
+      gameCtx.closePath();
+      gameCtx.fill();
+
+      // Belt
+      gameCtx.fillStyle = "#3a1a1a";
+      gameCtx.fillRect(playerX - 24, playerY - 8, 48, 4);
+
+      // Arms
+      const shoulderY = torsoTopY + 10;
+      const armDown = player.bending;
+      if (armDown) {
+        // Bent forward
+        draw3DCapsule(playerX - 18, shoulderY, playerX - 30, shoulderY + 30, 6, robeColor, robeHighlight);
+        draw3DCapsule(playerX - 30, shoulderY + 30, playerX - 25, shoulderY + 55, 5, skinColor, skinHighlight);
+        draw3DCapsule(playerX + 18, shoulderY, playerX + 30, shoulderY + 30, 6, robeColor, robeHighlight);
+        draw3DCapsule(playerX + 30, shoulderY + 30, playerX + 25, shoulderY + 55, 5, skinColor, skinHighlight);
+      } else {
+        // Natural at sides
+        draw3DCapsule(playerX - 18, shoulderY, playerX - 22, shoulderY + 25, 6, robeColor, robeHighlight);
+        draw3DCapsule(playerX - 22, shoulderY + 25, playerX - 24, shoulderY + 50, 5, skinColor, skinHighlight);
+        draw3DCapsule(playerX + 18, shoulderY, playerX + 22, shoulderY + 25, 6, robeColor, robeHighlight);
+        draw3DCapsule(playerX + 22, shoulderY + 25, playerX + 24, shoulderY + 50, 5, skinColor, skinHighlight);
+      }
+
+      // Neck
+      draw3DCapsule(playerX, torsoTopY - 2, playerX, headY + 8, 5, skinColor, skinHighlight);
+
+      // Head
+      draw3DEllipse(playerX, headY, headR, headR + 1, skinColor, skinHighlight);
+
+      // Hair (top of head)
+      gameCtx.fillStyle = "#1a0a0a";
+      gameCtx.beginPath();
+      gameCtx.arc(playerX, headY - 2, headR + 1, Math.PI * 1.1, Math.PI * 1.9);
+      gameCtx.fill();
+
+      // Eyes
+      gameCtx.fillStyle = "#1a1a1a";
+      gameCtx.beginPath();
+      gameCtx.arc(playerX - 5, headY + 2, 1.5, 0, Math.PI * 2);
+      gameCtx.arc(playerX + 5, headY + 2, 1.5, 0, Math.PI * 2);
+      gameCtx.fill();
     }
 
     // =====================
@@ -857,7 +987,7 @@
         phase++;
         phaseStartTime = gameTime;
         const newConfig = phaseConfig[phase];
-        speed = 1 + (phase - 1) * 0.3;
+        speed = 1 + (phase - 1) * 0.15;
         player.posture = newConfig.playerPosture;
         baseBPM = newConfig.bpm;
 
@@ -1038,11 +1168,11 @@
       // Check phase transition
       checkPhase();
 
-      // Gradually increase speed within phase
+      // Gradually increase speed within phase (slow for stroke patients)
       const phaseTime = gameTime - phaseStartTime;
       const phaseDur = phaseConfig[phase].duration;
       const phaseProg = Math.min(1, phaseTime / phaseDur);
-      speed = (1 + (phase - 1) * 0.3) + phaseProg * 0.4;
+      speed = (1 + (phase - 1) * 0.15) + phaseProg * 0.2;
 
       // Draw
       drawBackground(dt);
