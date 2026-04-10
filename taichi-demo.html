@@ -1473,22 +1473,39 @@
           setTimeout(() => { player.bending = false; }, 400);
         }
       } else if (absDx > 40 && absDx > absDy) {
-        // Horizontal swipe
+        // Horizontal swipe - move one lane
         if (dx < 0) {
-          player.targetX = 0.2;
-          document.getElementById("hudPos").textContent = "左";
-          tryHit("left");
+          if (player.targetX > 0.6) {
+            player.targetX = 0.5;
+            document.getElementById("hudPos").textContent = "中";
+            tryHit("reach");
+          } else {
+            player.targetX = 0.2;
+            document.getElementById("hudPos").textContent = "左";
+            tryHit("left");
+          }
         } else {
-          player.targetX = 0.8;
-          document.getElementById("hudPos").textContent = "右";
-          tryHit("right");
+          if (player.targetX < 0.4) {
+            player.targetX = 0.5;
+            document.getElementById("hudPos").textContent = "中";
+            tryHit("reach");
+          } else {
+            player.targetX = 0.8;
+            document.getElementById("hudPos").textContent = "右";
+            tryHit("right");
+          }
         }
       } else {
-        // Tap - left or right half
-        if (touchStartX < window.innerWidth / 2) {
+        // Tap - 3 lanes (left/center/right thirds)
+        const w = window.innerWidth;
+        if (touchStartX < w / 3) {
           player.targetX = 0.2;
           document.getElementById("hudPos").textContent = "左";
           tryHit("left");
+        } else if (touchStartX < (w * 2) / 3) {
+          player.targetX = 0.5;
+          document.getElementById("hudPos").textContent = "中";
+          tryHit("reach");
         } else {
           player.targetX = 0.8;
           document.getElementById("hudPos").textContent = "右";
