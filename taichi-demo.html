@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>太极节奏 - Design Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a15;
+      color: #eee;
+      font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    #startScreen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      text-align: center;
+      padding: 20px;
+    }
+    #startScreen h1 {
+      font-size: 48px;
+      background: linear-gradient(135deg, #d4a574, #e94560);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    #startScreen .subtitle {
+      font-size: 18px;
+      color: #888;
+      margin-bottom: 40px;
+      letter-spacing: 2px;
+    }
+    #startScreen .instruction {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 25px 40px;
+      margin-bottom: 30px;
+      max-width: 500px;
+      line-height: 1.9;
+      font-size: 14px;
+      color: #bbb;
+    }
+    .key {
+      display: inline-block;
+      padding: 2px 10px;
+      background: #2a2a4a;
+      border-radius: 4px;
+      font-family: monospace;
+      color: #d4a574;
+      margin: 0 2px;
+    }
+    #startBtn {
+      padding: 16px 50px;
+      font-size: 20px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #d4a574, #e94560);
+      color: #0a0a15;
+      cursor: pointer;
+      font-weight: bold;
+      box-shadow: 0 4px 20px rgba(212,165,116,0.4);
+      transition: transform 0.2s;
+    }
+    #startBtn:hover { transform: scale(1.05); }
+
+    /* Game */
+    #gameArea {
+      display: none;
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(180deg, #0a0a15 0%, #1a1a35 50%, #2a1a3a 100%);
+    }
+
+    /* Background layer - perspective path */
+    #bgCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Game canvas - notes + player */
+    #gameCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* HUD */
+    #hud {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(10px);
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 18px 24px;
+      min-width: 220px;
+    }
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 6px 0;
+      font-size: 13px;
+    }
+    .hud-row .label { color: #888; }
+    .hud-row .value { color: #d4a574; font-weight: bold; font-size: 15px; }
+    .hud-row .value.green { color: #4ecca3; }
+    .hud-row .value.red { color: #e94560; }
+
+    /* Phase indicator */
+    #phaseIndicator {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(10px);
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 15px 25px;
+      text-align: center;
+    }
+    #phaseIndicator .phase-label {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+      letter-spacing: 2px;
+    }
+    #phaseIndicator .phase-name {
+      font-size: 20px;
+      color: #d4a574;
+      font-weight: bold;
+    }
+    #phaseIndicator .phase-bbs {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    /* Score big display */
+    #scoreDisplay {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      text-align: center;
+    }
+    #scoreDisplay .score-num {
+      font-size: 48px;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 0 20px rgba(212,165,116,0.8);
+    }
+    #scoreDisplay .combo {
+      font-size: 14px;
+      color: #4ecca3;
+      letter-spacing: 2px;
+    }
+
+    /* Hit feedback */
+    #hitFeedback {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 64px;
+      font-weight: bold;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 20;
+      text-shadow: 0 0 30px currentColor;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+
+    /* Control panel (for demo only) */
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(10px);
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 12px 25px;
+      font-size: 12px;
+      color: #888;
+      text-align: center;
+    }
+    #controls .title {
+      color: #d4a574;
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+
+    /* Phase transition overlay */
+    #phaseTransition {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    #phaseTransition.show { display: flex; }
+    #phaseTransition .content {
+      text-align: center;
+      animation: fadeIn 0.5s;
+    }
+    #phaseTransition h2 {
+      font-size: 52px;
+      background: linear-gradient(135deg, #d4a574, #e94560);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 20px;
+    }
+    #phaseTransition p {
+      font-size: 18px;
+      color: #bbb;
+      margin-bottom: 10px;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Start Screen -->
+  <div id="startScreen">
+    <h1>太极节奏</h1>
+    <p class="subtitle">TAI CHI RHYTHM · Design Demo</p>
+    <div class="instruction">
+      这是游戏设计演示。真实游戏中患者用身体动作控制。<br><br>
+      <b style="color:#d4a574;">电脑键盘：</b><br>
+      <span class="key">←</span> <span class="key">→</span> 左右移动 ·
+      <span class="key">↑</span> 站起/抬脚 ·
+      <span class="key">↓</span> 弯腰<br><br>
+      <b style="color:#d4a574;">手机触屏：</b><br>
+      点击屏幕<b>左/右半边</b> = 左/右移动<br>
+      <b>上滑</b> = 站起来/抬脚 · <b>下滑</b> = 弯腰<br><br>
+      <span style="color:#4ecca3;">游戏会自动从坐位→站位→踏步逐步进阶</span>
+    </div>
+    <button id="startBtn">开始演示</button>
+  </div>
+
+  <!-- Game Area -->
+  <div id="gameArea">
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- HUD -->
+    <div id="hud">
+      <div class="hud-row"><span class="label">阶段</span><span class="value" id="hudPhase">坐位</span></div>
+      <div class="hud-row"><span class="label">速度</span><span class="value" id="hudSpeed">1.0x</span></div>
+      <div class="hud-row"><span class="label">命中</span><span class="value green" id="hudHits">0</span></div>
+      <div class="hud-row"><span class="label">Miss</span><span class="value red" id="hudMiss">0</span></div>
+      <div class="hud-row"><span class="label">准确率</span><span class="value" id="hudAcc">--</span></div>
+      <div class="hud-row"><span class="label">玩家位置</span><span class="value" id="hudPos">中</span></div>
+    </div>
+
+    <div id="phaseIndicator">
+      <div class="phase-label">CURRENT PHASE</div>
+      <div class="phase-name" id="phaseName">Seated</div>
+      <div class="phase-bbs" id="phaseBBS">BBS #3 坐位平衡</div>
+    </div>
+
+    <div id="scoreDisplay">
+      <div class="score-num" id="scoreNum">0</div>
+      <div class="combo" id="comboNum">COMBO × 0</div>
+    </div>
+
+    <div id="hitFeedback"></div>
+
+    <div id="controls">
+      <div class="title">DEMO CONTROLS</div>
+      <span class="key">←</span><span class="key">→</span> 移动
+      &nbsp;&nbsp;<span class="key">↑</span> 站起/抬脚
+      &nbsp;&nbsp;<span class="key">↓</span> 坐下/弯腰
+    </div>
+
+    <div id="phaseTransition">
+      <div class="content">
+        <h2 id="transitionTitle"></h2>
+        <p id="transitionDesc"></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script>
+    // =====================
+    // STATE
+    // =====================
+    let bgCanvas, bgCtx, gameCanvas, gameCtx;
+    let W, H;
+
+    // Player state
+    const player = {
+      x: 0.5,      // 0-1, horizontal position
+      targetX: 0.5,
+      y: 0.7,      // fixed vertical position on screen
+      posture: "sitting", // sitting, standing
+      legLifted: null, // null, "left", "right"
+      bending: false
+    };
+
+    // Game state
+    let phase = 1; // 1=seated, 2=standing, 3=stepping, 4=advanced
+    let phaseStartTime = 0;
+    let gameTime = 0;
+    let lastFrameTime = 0;
+
+    // Notes
+    let notes = []; // falling notes
+    let nextNoteTime = 0;
+    let baseBPM = 60;
+    let speed = 1.0;
+
+    // Score
+    let score = 0;
+    let combo = 0;
+    let maxCombo = 0;
+    let hits = 0;
+    let misses = 0;
+
+    // Input
+    let keys = {};
+
+    // Audio
+    let bgSynth, hitSynth, stepSynth, missSynth;
+    let bgPlaying = false;
+
+    // Phase config
+    const phaseConfig = {
+      1: {
+        name: "Seated",
+        cnName: "坐位",
+        bbs: "BBS #3 坐位平衡",
+        duration: 30000, // 30s in demo
+        noteTypes: ["left", "right"],
+        bpm: 50,
+        playerPosture: "sitting"
+      },
+      2: {
+        name: "Standing",
+        cnName: "站立",
+        bbs: "BBS #2,#7,#8 站立平衡",
+        duration: 30000,
+        noteTypes: ["left", "right", "reach"],
+        bpm: 60,
+        playerPosture: "standing"
+      },
+      3: {
+        name: "Stepping",
+        cnName: "踏步",
+        bbs: "BBS #12 交替踏步",
+        duration: 30000,
+        noteTypes: ["left", "right", "stepL", "stepR"],
+        bpm: 70,
+        playerPosture: "standing"
+      },
+      4: {
+        name: "Advanced",
+        cnName: "高级",
+        bbs: "BBS #14 单腿站立",
+        duration: 30000,
+        noteTypes: ["left", "right", "stepL", "stepR", "hold"],
+        bpm: 80,
+        playerPosture: "standing"
+      }
+    };
+
+    // =====================
+    // CANVAS INIT
+    // =====================
+    function initCanvas() {
+      bgCanvas = document.getElementById("bgCanvas");
+      gameCanvas = document.getElementById("gameCanvas");
+      bgCtx = bgCanvas.getContext("2d");
+      gameCtx = gameCanvas.getContext("2d");
+      resizeCanvas();
+      window.addEventListener("resize", resizeCanvas);
+    }
+
+    function resizeCanvas() {
+      W = window.innerWidth;
+      H = window.innerHeight;
+      bgCanvas.width = W;
+      bgCanvas.height = H;
+      gameCanvas.width = W;
+      gameCanvas.height = H;
+    }
+
+    // =====================
+    // BACKGROUND - perspective path
+    // =====================
+    let bgOffset = 0;
+    function drawBackground(dt) {
+      bgCtx.clearRect(0, 0, W, H);
+
+      // Sky gradient
+      const sky = bgCtx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, "#0a0a15");
+      sky.addColorStop(0.4, "#1a1a35");
+      sky.addColorStop(0.7, "#2a1a3a");
+      sky.addColorStop(1, "#1a0a1a");
+      bgCtx.fillStyle = sky;
+      bgCtx.fillRect(0, 0, W, H);
+
+      // Stars
+      bgCtx.fillStyle = "rgba(255,255,255,0.4)";
+      for (let i = 0; i < 60; i++) {
+        const x = (i * 137.5) % W;
+        const y = (i * 89) % (H * 0.5);
+        const size = (i % 3) + 1;
+        bgCtx.fillRect(x, y, size, size);
+      }
+
+      // Perspective path
+      const horizonY = H * 0.35;
+      const pathBottomW = W * 1.2;
+      const pathTopW = W * 0.08;
+      const centerX = W / 2;
+
+      // Path fill
+      const pathGrad = bgCtx.createLinearGradient(0, horizonY, 0, H);
+      pathGrad.addColorStop(0, "rgba(212,165,116,0.1)");
+      pathGrad.addColorStop(1, "rgba(212,165,116,0.3)");
+      bgCtx.fillStyle = pathGrad;
+      bgCtx.beginPath();
+      bgCtx.moveTo(centerX - pathTopW / 2, horizonY);
+      bgCtx.lineTo(centerX + pathTopW / 2, horizonY);
+      bgCtx.lineTo(centerX + pathBottomW / 2, H);
+      bgCtx.lineTo(centerX - pathBottomW / 2, H);
+      bgCtx.closePath();
+      bgCtx.fill();
+
+      // Path edge lines
+      bgCtx.strokeStyle = "rgba(212,165,116,0.6)";
+      bgCtx.lineWidth = 2;
+      bgCtx.beginPath();
+      bgCtx.moveTo(centerX - pathTopW / 2, horizonY);
+      bgCtx.lineTo(centerX - pathBottomW / 2, H);
+      bgCtx.moveTo(centerX + pathTopW / 2, horizonY);
+      bgCtx.lineTo(centerX + pathBottomW / 2, H);
+      bgCtx.stroke();
+
+      // Moving horizontal lines (perspective motion)
+      bgOffset = (bgOffset + dt * 0.0008 * speed) % 1;
+      for (let i = 0; i < 15; i++) {
+        const t = ((i / 15) + bgOffset) % 1;
+        const y = horizonY + (H - horizonY) * t * t;
+        const lineW = pathTopW + (pathBottomW - pathTopW) * t * t;
+        bgCtx.strokeStyle = `rgba(212,165,116,${0.15 + t * 0.25})`;
+        bgCtx.lineWidth = 1 + t * 2;
+        bgCtx.beginPath();
+        bgCtx.moveTo(centerX - lineW / 2, y);
+        bgCtx.lineTo(centerX + lineW / 2, y);
+        bgCtx.stroke();
+      }
+
+      // Lane separators (3 lanes on path)
+      bgCtx.strokeStyle = "rgba(212,165,116,0.15)";
+      bgCtx.lineWidth = 1;
+      for (const lx of [-1/6, 1/6]) {
+        const topX = centerX + lx * pathTopW;
+        const botX = centerX + lx * pathBottomW;
+        bgCtx.beginPath();
+        bgCtx.moveTo(topX, horizonY);
+        bgCtx.lineTo(botX, H);
+        bgCtx.stroke();
+      }
+
+      // Mountains silhouette
+      bgCtx.fillStyle = "rgba(20,10,30,0.8)";
+      bgCtx.beginPath();
+      bgCtx.moveTo(0, horizonY);
+      for (let x = 0; x <= W; x += 50) {
+        const h = Math.sin(x * 0.01) * 20 + Math.sin(x * 0.03) * 15 + 30;
+        bgCtx.lineTo(x, horizonY - h);
+      }
+      bgCtx.lineTo(W, horizonY);
+      bgCtx.closePath();
+      bgCtx.fill();
+    }
+
+    // =====================
+    // NOTES
+    // =====================
+    function spawnNote() {
+      const config = phaseConfig[phase];
+      const types = config.noteTypes;
+      const type = types[Math.floor(Math.random() * types.length)];
+
+      let lane;
+      if (type === "left") lane = 0;
+      else if (type === "right") lane = 2;
+      else if (type === "reach") lane = 1;
+      else if (type === "stepL") lane = 0;
+      else if (type === "stepR") lane = 2;
+      else lane = 1;
+
+      notes.push({
+        type: type,
+        lane: lane, // 0=left, 1=center, 2=right
+        z: 0,       // 0=spawn at horizon, 1=hit line at bottom
+        hit: false,
+        active: true,
+        spawnTime: performance.now()
+      });
+    }
+
+    function drawNotes(dt) {
+      const horizonY = H * 0.35;
+      const centerX = W / 2;
+      const pathBottomW = W * 1.2;
+      const pathTopW = W * 0.08;
+      const hitZ = 0.92;
+
+      gameCtx.clearRect(0, 0, W, H);
+
+      // Draw hit line
+      const hitY = horizonY + (H - horizonY) * hitZ * hitZ;
+      const hitLineW = pathTopW + (pathBottomW - pathTopW) * hitZ * hitZ;
+      gameCtx.strokeStyle = "rgba(212,165,116,0.8)";
+      gameCtx.lineWidth = 4;
+      gameCtx.shadowColor = "#d4a574";
+      gameCtx.shadowBlur = 20;
+      gameCtx.beginPath();
+      gameCtx.moveTo(centerX - hitLineW / 2, hitY);
+      gameCtx.lineTo(centerX + hitLineW / 2, hitY);
+      gameCtx.stroke();
+      gameCtx.shadowBlur = 0;
+
+      // Update and draw notes
+      for (const note of notes) {
+        if (!note.active) continue;
+
+        note.z += 0.00025 * speed * dt;
+
+        const t = note.z;
+        const noteY = horizonY + (H - horizonY) * t * t;
+        const laneW = pathTopW + (pathBottomW - pathTopW) * t * t;
+        const laneOffset = (note.lane - 1) * (laneW / 3);
+        const noteX = centerX + laneOffset;
+        const noteSize = 15 + t * 50;
+
+        let color, glow, label;
+        switch (note.type) {
+          case "left": color = "#4ecca3"; glow = "rgba(78,204,163,0.5)"; label = "←"; break;
+          case "right": color = "#4ecca3"; glow = "rgba(78,204,163,0.5)"; label = "→"; break;
+          case "reach": color = "#ffd700"; glow = "rgba(255,215,0,0.5)"; label = "↓"; break;
+          case "stepL": color = "#e94560"; glow = "rgba(233,69,96,0.5)"; label = "L"; break;
+          case "stepR": color = "#e94560"; glow = "rgba(233,69,96,0.5)"; label = "R"; break;
+          case "hold": color = "#a78bfa"; glow = "rgba(167,139,250,0.5)"; label = "◉"; break;
+        }
+
+        if (note.hit) {
+          gameCtx.globalAlpha = Math.max(0, 1 - (note.z - hitZ) * 8);
+          color = "#fff";
+        }
+
+        // Glow
+        gameCtx.shadowColor = color;
+        gameCtx.shadowBlur = 25 * t;
+
+        // Note body (diamond shape)
+        gameCtx.fillStyle = glow;
+        gameCtx.beginPath();
+        gameCtx.moveTo(noteX, noteY - noteSize);
+        gameCtx.lineTo(noteX + noteSize, noteY);
+        gameCtx.lineTo(noteX, noteY + noteSize);
+        gameCtx.lineTo(noteX - noteSize, noteY);
+        gameCtx.closePath();
+        gameCtx.fill();
+
+        gameCtx.fillStyle = color;
+        gameCtx.beginPath();
+        gameCtx.moveTo(noteX, noteY - noteSize * 0.7);
+        gameCtx.lineTo(noteX + noteSize * 0.7, noteY);
+        gameCtx.lineTo(noteX, noteY + noteSize * 0.7);
+        gameCtx.lineTo(noteX - noteSize * 0.7, noteY);
+        gameCtx.closePath();
+        gameCtx.fill();
+
+        // Label
+        gameCtx.shadowBlur = 0;
+        gameCtx.fillStyle = "#0a0a15";
+        gameCtx.font = `bold ${Math.floor(12 + t * 20)}px sans-serif`;
+        gameCtx.textAlign = "center";
+        gameCtx.textBaseline = "middle";
+        gameCtx.fillText(label, noteX, noteY);
+
+        gameCtx.globalAlpha = 1;
+
+        // Miss detection
+        if (!note.hit && note.z > hitZ + 0.05) {
+          note.active = false;
+          misses++;
+          combo = 0;
+          playMissSound();
+          showFeedback("MISS", "#888");
+        }
+
+        if (note.z > 1.1) note.active = false;
+      }
+
+      // Clean up
+      notes = notes.filter(n => n.active);
+
+      // Draw player (avatar figure)
+      drawPlayer();
+    }
+
+    function drawPlayer() {
+      const horizonY = H * 0.35;
+      const pathBottomW = W * 1.2;
+      const centerX = W / 2;
+
+      // Player at bottom of path
+      const t = 0.95;
+      const laneW = W * 0.08 + (pathBottomW - W * 0.08) * t * t;
+      const playerY = horizonY + (H - horizonY) * t * t - 20;
+      const laneOffset = (player.x - 0.5) * laneW * 0.8;
+      const playerX = centerX + laneOffset;
+
+      // Smooth interpolation toward target
+      player.x += (player.targetX - player.x) * 0.15;
+
+      // Draw avatar (simple stick figure silhouette)
+      gameCtx.strokeStyle = "#d4a574";
+      gameCtx.fillStyle = "rgba(212,165,116,0.9)";
+      gameCtx.lineWidth = 4;
+      gameCtx.lineCap = "round";
+      gameCtx.shadowColor = "#d4a574";
+      gameCtx.shadowBlur = 15;
+
+      const headR = 18;
+      const bodyLen = player.posture === "standing" ? 60 : 40;
+      const legLen = player.posture === "standing" ? 55 : 30;
+
+      // Head
+      gameCtx.beginPath();
+      gameCtx.arc(playerX, playerY - bodyLen - headR, headR, 0, Math.PI * 2);
+      gameCtx.fill();
+
+      // Body
+      gameCtx.beginPath();
+      gameCtx.moveTo(playerX, playerY - bodyLen);
+      gameCtx.lineTo(playerX, playerY);
+      gameCtx.stroke();
+
+      // Arms
+      const armY = playerY - bodyLen * 0.8;
+      const armSpread = player.bending ? 30 : 20;
+      gameCtx.beginPath();
+      gameCtx.moveTo(playerX, armY);
+      gameCtx.lineTo(playerX - armSpread, armY + 25);
+      gameCtx.moveTo(playerX, armY);
+      gameCtx.lineTo(playerX + armSpread, armY + 25);
+      gameCtx.stroke();
+
+      // Legs
+      if (player.posture === "standing") {
+        // Left leg
+        const leftLegBent = player.legLifted === "left";
+        gameCtx.beginPath();
+        gameCtx.moveTo(playerX, playerY);
+        if (leftLegBent) {
+          gameCtx.lineTo(playerX - 15, playerY + legLen * 0.4);
+        } else {
+          gameCtx.lineTo(playerX - 15, playerY + legLen);
+        }
+        gameCtx.stroke();
+
+        // Right leg
+        const rightLegBent = player.legLifted === "right";
+        gameCtx.beginPath();
+        gameCtx.moveTo(playerX, playerY);
+        if (rightLegBent) {
+          gameCtx.lineTo(playerX + 15, playerY + legLen * 0.4);
+        } else {
+          gameCtx.lineTo(playerX + 15, playerY + legLen);
+        }
+        gameCtx.stroke();
+      } else {
+        // Sitting - draw a chair indicator
+        gameCtx.strokeStyle = "rgba(212,165,116,0.5)";
+        gameCtx.lineWidth = 3;
+        gameCtx.strokeRect(playerX - 30, playerY, 60, 35);
+        gameCtx.strokeStyle = "#d4a574";
+        gameCtx.lineWidth = 4;
+        // Legs bent
+        gameCtx.beginPath();
+        gameCtx.moveTo(playerX - 10, playerY);
+        gameCtx.lineTo(playerX - 20, playerY + 25);
+        gameCtx.moveTo(playerX + 10, playerY);
+        gameCtx.lineTo(playerX + 20, playerY + 25);
+        gameCtx.stroke();
+      }
+
+      gameCtx.shadowBlur = 0;
+    }
+
+    // =====================
+    // HIT DETECTION
+    // =====================
+    function tryHit(actionType) {
+      const hitZ = 0.92;
+      const hitWindow = 0.08;
+
+      let bestNote = null;
+      let bestDist = Infinity;
+
+      for (const note of notes) {
+        if (!note.active || note.hit) continue;
+
+        let match = false;
+        if (actionType === "left" && note.type === "left" && player.targetX < 0.4) match = true;
+        else if (actionType === "right" && note.type === "right" && player.targetX > 0.6) match = true;
+        else if (actionType === "reach" && note.type === "reach") match = true;
+        else if (actionType === "stepL" && note.type === "stepL") match = true;
+        else if (actionType === "stepR" && note.type === "stepR") match = true;
+
+        if (!match) continue;
+
+        const dist = Math.abs(note.z - hitZ);
+        if (dist < hitWindow && dist < bestDist) {
+          bestDist = dist;
+          bestNote = note;
+        }
+      }
+
+      if (bestNote) {
+        bestNote.hit = true;
+        hits++;
+        combo++;
+        if (combo > maxCombo) maxCombo = combo;
+
+        const rating = bestDist < 0.03 ? "PERFECT" : bestDist < 0.05 ? "GREAT" : "GOOD";
+        const ratingColor = rating === "PERFECT" ? "#ffd700" : rating === "GREAT" ? "#4ecca3" : "#d4a574";
+        const points = rating === "PERFECT" ? 100 : rating === "GREAT" ? 70 : 40;
+        score += points * (1 + combo * 0.05);
+
+        showFeedback(rating, ratingColor);
+        playHitSound(bestNote.type);
+        return true;
+      }
+      return false;
+    }
+
+    // =====================
+    // FEEDBACK
+    // =====================
+    function showFeedback(text, color) {
+      const el = document.getElementById("hitFeedback");
+      el.textContent = text;
+      el.style.color = color;
+      el.style.opacity = 1;
+      el.style.transform = "translate(-50%, -50%) scale(1.2)";
+      setTimeout(() => {
+        el.style.opacity = 0;
+        el.style.transform = "translate(-50%, -50%) scale(1)";
+      }, 400);
+    }
+
+    // =====================
+    // AUDIO
+    // =====================
+    function initAudio() {
+      bgSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "sine" },
+        envelope: { attack: 2, decay: 1, sustain: 0.7, release: 3 }
+      }).toDestination();
+      bgSynth.volume.value = -22;
+
+      hitSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.01, decay: 0.3, sustain: 0.2, release: 0.5 }
+      }).toDestination();
+      hitSynth.volume.value = -8;
+
+      stepSynth = new Tone.MembraneSynth().toDestination();
+      stepSynth.volume.value = -10;
+
+      missSynth = new Tone.NoiseSynth({
+        noise: { type: "pink" },
+        envelope: { attack: 0.01, decay: 0.15, sustain: 0, release: 0.1 }
+      }).toDestination();
+      missSynth.volume.value = -25;
+    }
+
+    function startBGM() {
+      if (bgPlaying) return;
+      bgPlaying = true;
+      const chords = [
+        ["C3", "G3", "C4", "E4"],
+        ["A2", "E3", "A3", "C4"],
+        ["F2", "C3", "F3", "A3"],
+        ["G2", "D3", "G3", "B3"]
+      ];
+      let ci = 0;
+      const loop = () => {
+        if (!bgPlaying) return;
+        bgSynth.triggerAttackRelease(chords[ci], 3.5);
+        ci = (ci + 1) % chords.length;
+        setTimeout(loop, 3500);
+      };
+      loop();
+    }
+
+    function playHitSound(type) {
+      const pentatonic = ["C5", "D5", "E5", "G5", "A5", "C6"];
+      const note = pentatonic[Math.floor(Math.random() * pentatonic.length)];
+      if (type === "stepL" || type === "stepR") {
+        stepSynth.triggerAttackRelease("C2", "8n");
+        hitSynth.triggerAttackRelease(note, "16n");
+      } else {
+        hitSynth.triggerAttackRelease(note, "8n");
+      }
+    }
+
+    function playMissSound() {
+      if (missSynth) missSynth.triggerAttackRelease("16n");
+    }
+
+    // =====================
+    // PHASE MANAGEMENT
+    // =====================
+    function checkPhase() {
+      const config = phaseConfig[phase];
+      if (!config) return;
+
+      if (gameTime - phaseStartTime > config.duration && phase < 4) {
+        phase++;
+        phaseStartTime = gameTime;
+        const newConfig = phaseConfig[phase];
+        speed = 1 + (phase - 1) * 0.3;
+        player.posture = newConfig.playerPosture;
+        baseBPM = newConfig.bpm;
+
+        showPhaseTransition(newConfig.cnName, newConfig.bbs);
+
+        document.getElementById("phaseName").textContent = newConfig.name;
+        document.getElementById("phaseBBS").textContent = newConfig.bbs;
+        document.getElementById("hudPhase").textContent = newConfig.cnName;
+      }
+    }
+
+    function showPhaseTransition(name, bbs) {
+      const el = document.getElementById("phaseTransition");
+      document.getElementById("transitionTitle").textContent = name;
+      document.getElementById("transitionDesc").textContent = bbs;
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 2000);
+    }
+
+    // =====================
+    // INPUT
+    // =====================
+    window.addEventListener("keydown", e => {
+      if (!gameRunning) return;
+      keys[e.key] = true;
+
+      if (e.key === "ArrowLeft") {
+        player.targetX = 0.2;
+        document.getElementById("hudPos").textContent = "左";
+        tryHit("left");
+      } else if (e.key === "ArrowRight") {
+        player.targetX = 0.8;
+        document.getElementById("hudPos").textContent = "右";
+        tryHit("right");
+      } else if (e.key === "ArrowUp" || e.key === " ") {
+        if (phase >= 3) {
+          player.legLifted = player.legLifted === "left" ? "right" : "left";
+          tryHit(player.legLifted === "left" ? "stepL" : "stepR");
+          setTimeout(() => { player.legLifted = null; }, 400);
+        } else {
+          if (player.posture === "sitting") {
+            player.posture = "standing";
+          }
+          tryHit("reach");
+        }
+      } else if (e.key === "ArrowDown") {
+        player.bending = true;
+        tryHit("reach");
+        setTimeout(() => { player.bending = false; }, 400);
+      }
+      e.preventDefault();
+    });
+
+    window.addEventListener("keyup", e => {
+      keys[e.key] = false;
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        setTimeout(() => {
+          player.targetX = 0.5;
+          document.getElementById("hudPos").textContent = "中";
+        }, 200);
+      }
+    });
+
+    // ===== TOUCH CONTROLS =====
+    let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+
+    function handleTouchStart(e) {
+      if (!gameRunning) return;
+      const t = e.touches[0];
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+      touchStartTime = performance.now();
+      e.preventDefault();
+    }
+
+    function handleTouchEnd(e) {
+      if (!gameRunning) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+      const dt = performance.now() - touchStartTime;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+
+      // Swipe detection
+      if (absDy > 40 && absDy > absDx) {
+        // Vertical swipe
+        if (dy < 0) {
+          // Swipe up - stand / step
+          if (phase >= 3) {
+            player.legLifted = player.legLifted === "left" ? "right" : "left";
+            tryHit(player.legLifted === "left" ? "stepL" : "stepR");
+            setTimeout(() => { player.legLifted = null; }, 400);
+          } else {
+            if (player.posture === "sitting") {
+              player.posture = "standing";
+            }
+            tryHit("reach");
+          }
+        } else {
+          // Swipe down - bend
+          player.bending = true;
+          tryHit("reach");
+          setTimeout(() => { player.bending = false; }, 400);
+        }
+      } else if (absDx > 40 && absDx > absDy) {
+        // Horizontal swipe
+        if (dx < 0) {
+          player.targetX = 0.2;
+          document.getElementById("hudPos").textContent = "左";
+          tryHit("left");
+        } else {
+          player.targetX = 0.8;
+          document.getElementById("hudPos").textContent = "右";
+          tryHit("right");
+        }
+        setTimeout(() => {
+          player.targetX = 0.5;
+          document.getElementById("hudPos").textContent = "中";
+        }, 400);
+      } else {
+        // Tap - left or right half
+        if (touchStartX < window.innerWidth / 2) {
+          player.targetX = 0.2;
+          document.getElementById("hudPos").textContent = "左";
+          tryHit("left");
+        } else {
+          player.targetX = 0.8;
+          document.getElementById("hudPos").textContent = "右";
+          tryHit("right");
+        }
+        setTimeout(() => {
+          player.targetX = 0.5;
+          document.getElementById("hudPos").textContent = "中";
+        }, 400);
+      }
+      e.preventDefault();
+    }
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: false });
+    window.addEventListener("touchend", handleTouchEnd, { passive: false });
+
+    // =====================
+    // MAIN LOOP
+    // =====================
+    let gameRunning = false;
+    let gameStartTime = 0;
+
+    function startGame() {
+      gameRunning = true;
+      gameStartTime = performance.now();
+      phaseStartTime = 0;
+      lastFrameTime = performance.now();
+      nextNoteTime = performance.now() + 1500;
+      phase = 1;
+      speed = 1.0;
+      player.posture = "sitting";
+      startBGM();
+      gameLoop();
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+      requestAnimationFrame(gameLoop);
+
+      const now = performance.now();
+      const dt = Math.min(100, now - lastFrameTime);
+      lastFrameTime = now;
+      gameTime = now - gameStartTime;
+
+      // Spawn notes
+      const beatInterval = (60000 / baseBPM) / speed;
+      if (now >= nextNoteTime) {
+        spawnNote();
+        nextNoteTime = now + beatInterval;
+      }
+
+      // Check phase transition
+      checkPhase();
+
+      // Gradually increase speed within phase
+      const phaseTime = gameTime - phaseStartTime;
+      const phaseDur = phaseConfig[phase].duration;
+      const phaseProg = Math.min(1, phaseTime / phaseDur);
+      speed = (1 + (phase - 1) * 0.3) + phaseProg * 0.4;
+
+      // Draw
+      drawBackground(dt);
+      drawNotes(dt);
+
+      // Update HUD
+      document.getElementById("scoreNum").textContent = Math.floor(score);
+      document.getElementById("comboNum").textContent = "COMBO × " + combo;
+      document.getElementById("hudSpeed").textContent = speed.toFixed(1) + "x";
+      document.getElementById("hudHits").textContent = hits;
+      document.getElementById("hudMiss").textContent = misses;
+      const total = hits + misses;
+      document.getElementById("hudAcc").textContent = total > 0
+        ? Math.round(hits / total * 100) + "%"
+        : "--";
+    }
+
+    // =====================
+    // INIT
+    // =====================
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      await Tone.start();
+      initAudio();
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("gameArea").style.display = "block";
+      initCanvas();
+      document.getElementById("phaseName").textContent = phaseConfig[1].name;
+      document.getElementById("phaseBBS").textContent = phaseConfig[1].bbs;
+      document.getElementById("hudPhase").textContent = phaseConfig[1].cnName;
+      startGame();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game 1: Tai Chi Rise (太极起势)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a1a;
+      color: #eee;
+      font-family: 'Segoe UI', sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* === Start Screen === */
+    #startScreen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      text-align: center;
+      padding: 20px;
+    }
+    #startScreen h1 {
+      font-size: 32px;
+      color: #d4a574;
+      margin-bottom: 8px;
+    }
+    #startScreen .subtitle {
+      font-size: 16px;
+      color: #8a8a8a;
+      margin-bottom: 24px;
+    }
+    #startScreen .instructions {
+      font-size: 14px;
+      color: #bbb;
+      max-width: 400px;
+      line-height: 1.8;
+      margin-bottom: 30px;
+    }
+    .cam-select {
+      margin-bottom: 20px;
+    }
+    .cam-select label {
+      color: #aaa;
+      font-size: 14px;
+      margin-right: 8px;
+    }
+    .cam-select select {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #1a1a2e;
+      color: #eee;
+      font-size: 14px;
+      min-width: 200px;
+    }
+    #startBtn {
+      padding: 14px 40px;
+      font-size: 18px;
+      border: none;
+      border-radius: 10px;
+      background: #d4a574;
+      color: #0a0a1a;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+    #startBtn:hover { background: #e0b88a; }
+    #startBtn:disabled {
+      background: #555;
+      cursor: not-allowed;
+      color: #999;
+    }
+    #statusMsg {
+      margin-top: 15px;
+      font-size: 13px;
+      color: #d4a574;
+    }
+
+    /* === Game Area === */
+    #gameArea {
+      display: none;
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Camera feed - left side */
+    #cameraPanel {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 35%;
+      height: 100%;
+      background: #111;
+      overflow: hidden;
+    }
+    #videoEl {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #videoEl.mirror { transform: scaleX(-1); }
+    #poseCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #poseCanvas.mirror { transform: scaleX(-1); }
+
+    /* Rhythm lane - center */
+    #rhythmPanel {
+      position: absolute;
+      left: 35%;
+      top: 0;
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(180deg, #0d0d20 0%, #1a1a35 100%);
+      border-left: 1px solid #2a2a4a;
+      border-right: 1px solid #2a2a4a;
+      overflow: hidden;
+    }
+    #rhythmCanvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Info panel - right side */
+    #infoPanel {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 25%;
+      height: 100%;
+      background: #0f0f22;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    .info-title {
+      font-size: 18px;
+      color: #d4a574;
+      text-align: center;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .info-block {
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .info-block .label {
+      font-size: 12px;
+      color: #777;
+      margin-bottom: 4px;
+    }
+    .info-block .value {
+      font-size: 22px;
+      font-weight: bold;
+      color: #d4a574;
+    }
+    .info-block .value.green { color: #4ecca3; }
+    .info-block .value.red { color: #e94560; }
+
+    /* Hit feedback overlay */
+    #hitFeedback {
+      position: absolute;
+      left: 35%;
+      width: 40%;
+      bottom: 18%;
+      text-align: center;
+      font-size: 36px;
+      font-weight: bold;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 20;
+      text-shadow: 0 0 20px rgba(212,165,116,0.8);
+    }
+
+    /* Action cue */
+    #actionCue {
+      position: absolute;
+      left: 35%;
+      width: 40%;
+      top: 15px;
+      text-align: center;
+      font-size: 20px;
+      color: #888;
+      z-index: 15;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Start Screen -->
+  <div id="startScreen">
+    <h1>太极起势</h1>
+    <p class="subtitle">Tai Chi Rise - Game 1</p>
+    <div class="instructions">
+      跟随节奏，在音符到达判定线时做出动作：<br>
+      <span style="color:#4ecca3;">绿色音符</span> = 站起来<br>
+      <span style="color:#e94560;">红色音符</span> = 坐下去<br>
+      时机越准，音乐越和谐
+    </div>
+    <div class="cam-select">
+      <label>摄像头:</label>
+      <select id="cameraSelect"><option value="">检测中...</option></select>
+    </div>
+    <button id="startBtn" disabled>加载模型中...</button>
+    <div id="statusMsg">正在初始化...</div>
+  </div>
+
+  <!-- Game Area -->
+  <div id="gameArea">
+    <!-- Camera -->
+    <div id="cameraPanel">
+      <video id="videoEl" playsinline autoplay muted></video>
+      <canvas id="poseCanvas"></canvas>
+    </div>
+
+    <!-- Rhythm Lane -->
+    <div id="rhythmPanel">
+      <canvas id="rhythmCanvas"></canvas>
+    </div>
+
+    <!-- Info Panel -->
+    <div id="infoPanel">
+      <div class="info-title">太极起势</div>
+      <div class="info-block">
+        <div class="label">得分</div>
+        <div class="value" id="scoreDisplay">0</div>
+      </div>
+      <div class="info-block">
+        <div class="label">连击</div>
+        <div class="value green" id="comboDisplay">0</div>
+      </div>
+      <div class="info-block">
+        <div class="label">当前状态</div>
+        <div class="value" id="stateDisplay">--</div>
+      </div>
+      <div class="info-block">
+        <div class="label">髋关节角度</div>
+        <div class="value" id="hipDisplay">--</div>
+      </div>
+      <div class="info-block">
+        <div class="label">完成次数</div>
+        <div class="value" id="transDisplay">0</div>
+      </div>
+      <div class="info-block">
+        <div class="label">评价</div>
+        <div class="value green" id="ratingDisplay">--</div>
+      </div>
+    </div>
+
+    <div id="hitFeedback"></div>
+    <div id="actionCue"></div>
+  </div>
+
+  <!-- Tone.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <!-- MediaPipe Pose -->
+  <script type="module">
+    import { PoseLandmarker, FilesetResolver, DrawingUtils } from
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+    // ========================
+    // STATE
+    // ========================
+    let poseLandmarker;
+    let video, poseCanvas, poseCtx, drawingUtils;
+    let rhythmCanvas, rhythmCtx;
+    let lastVideoTime = -1;
+    let animationId;
+
+    // Pose state
+    let currentState = "unknown"; // sitting, standing, transitioning
+    let previousState = "unknown";
+    let transitionCount = 0;
+
+    // Rhythm game state
+    const BPM = 40; // slow tempo for rehab
+    const BEAT_INTERVAL = 60000 / BPM; // ms per beat
+    let notes = []; // falling notes
+    let nextNoteTime = 0;
+    let nextNoteType = "stand"; // alternate stand/sit
+    let gameTime = 0;
+    let gameStartTime = 0;
+
+    // Scoring
+    let score = 0;
+    let combo = 0;
+    let maxCombo = 0;
+    let lastRating = "";
+
+    // Hit detection
+    const JUDGE_Y = 0.82; // judgment line position (0-1, from top)
+    const NOTE_SPEED = 0.15; // units per second (how fast notes fall)
+    const PERFECT_WINDOW = 0.6; // seconds
+    const GOOD_WINDOW = 1.0;
+
+    // Track if action was already matched to a note
+    let pendingAction = null; // "stand" or "sit" when player just did it
+
+    // Audio
+    let bgDrone, standSynth, sitSynth, hitSynth, missSynth;
+    let bgPlaying = false;
+
+    // ========================
+    // STATUS
+    // ========================
+    function setStatus(msg) {
+      const el = document.getElementById("statusMsg");
+      if (el) el.textContent = msg;
+    }
+
+    // ========================
+    // CAMERA ENUMERATION
+    // ========================
+    async function enumerateCameras() {
+      try {
+        // Need a temporary stream to get labels
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        tempStream.getTracks().forEach(t => t.stop());
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === "videoinput");
+        const select = document.getElementById("cameraSelect");
+        select.innerHTML = "";
+        videoDevices.forEach((d, i) => {
+          const opt = document.createElement("option");
+          opt.value = d.deviceId;
+          opt.textContent = d.label || ("Camera " + (i + 1));
+          select.appendChild(opt);
+        });
+        if (videoDevices.length === 0) {
+          select.innerHTML = "<option value=''>No camera found</option>";
+        }
+      } catch (e) {
+        console.error("Camera enum error:", e);
+        const select = document.getElementById("cameraSelect");
+        select.innerHTML = "<option value=''>Camera access denied</option>";
+      }
+    }
+
+    // ========================
+    // INIT MODEL
+    // ========================
+    async function initPose() {
+      try {
+        setStatus("加载 WASM...");
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+        );
+        setStatus("加载姿态模型...");
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+          },
+          runningMode: "VIDEO",
+          numPoses: 1
+        });
+        setStatus("模型加载完成!");
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("startBtn").textContent = "开始游戏";
+      } catch (e) {
+        setStatus("模型加载失败: " + e.message);
+        console.error(e);
+      }
+    }
+
+    // ========================
+    // AUDIO SETUP
+    // ========================
+    function initAudio() {
+      // Background drone - gentle pad
+      bgDrone = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "sine" },
+        envelope: { attack: 2, decay: 1, sustain: 0.8, release: 2 }
+      }).toDestination();
+      bgDrone.volume.value = -20;
+
+      // Stand-up sound - ascending pentatonic (guzheng-like)
+      standSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.02, decay: 0.4, sustain: 0.2, release: 1.0 }
+      }).toDestination();
+      standSynth.volume.value = -6;
+
+      // Sit-down sound - descending warm
+      sitSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.05, decay: 0.5, sustain: 0.3, release: 1.2 }
+      }).toDestination();
+      sitSynth.volume.value = -6;
+
+      // Hit confirmation
+      hitSynth = new Tone.Synth({
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.2 }
+      }).toDestination();
+      hitSynth.volume.value = -10;
+
+      // Miss sound
+      missSynth = new Tone.NoiseSynth({
+        noise: { type: "pink" },
+        envelope: { attack: 0.01, decay: 0.15, sustain: 0, release: 0.1 }
+      }).toDestination();
+      missSynth.volume.value = -25;
+    }
+
+    function startBGM() {
+      if (bgPlaying) return;
+      bgPlaying = true;
+      // Play a gentle sustained chord that loops
+      const playChord = () => {
+        if (!bgPlaying) return;
+        bgDrone.triggerAttackRelease(["C3", "G3", "C4"], 4);
+        setTimeout(() => {
+          if (!bgPlaying) return;
+          bgDrone.triggerAttackRelease(["A2", "E3", "A3"], 4);
+          setTimeout(playChord, 4000);
+        }, 4000);
+      };
+      playChord();
+    }
+
+    function playStandSound() {
+      const now = Tone.now();
+      const pentatonic = ["C4", "D4", "E4", "G4", "A4"];
+      pentatonic.forEach((note, i) => {
+        standSynth.triggerAttackRelease(note, "8n", now + i * 0.1);
+      });
+    }
+
+    function playSitSound() {
+      const now = Tone.now();
+      const descending = ["A4", "G4", "E4", "D4", "C4"];
+      descending.forEach((note, i) => {
+        sitSynth.triggerAttackRelease(note, "8n", now + i * 0.1);
+      });
+      sitSynth.triggerAttackRelease("C3", "2n", now + 0.2);
+    }
+
+    function playHitSound() {
+      hitSynth.triggerAttackRelease("C6", "16n");
+    }
+
+    function playMissSound() {
+      missSynth.triggerAttackRelease("8n");
+    }
+
+    // ========================
+    // CAMERA
+    // ========================
+    async function startCamera() {
+      video = document.getElementById("videoEl");
+      poseCanvas = document.getElementById("poseCanvas");
+      poseCtx = poseCanvas.getContext("2d");
+      drawingUtils = new DrawingUtils(poseCtx);
+
+      const selectedId = document.getElementById("cameraSelect").value;
+
+      try {
+        const constraints = {
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          }
+        };
+        if (selectedId) {
+          constraints.video.deviceId = { exact: selectedId };
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        // Check if front camera (for mirroring)
+        const track = stream.getVideoTracks()[0];
+        const settings = track.getSettings();
+        const isFront = settings.facingMode === "user" || !settings.facingMode;
+
+        video.addEventListener("loadeddata", function onReady() {
+          video.removeEventListener("loadeddata", onReady);
+          poseCanvas.width = video.videoWidth || 640;
+          poseCanvas.height = video.videoHeight || 480;
+          startGameLoop();
+        }, { once: true });
+
+        video.srcObject = stream;
+        if (isFront) {
+          video.classList.add("mirror");
+          poseCanvas.classList.add("mirror");
+        }
+        await video.play();
+      } catch (e) {
+        console.error("Camera error:", e);
+      }
+    }
+
+    // ========================
+    // ANGLE CALCULATION
+    // ========================
+    function calcAngle(a, b, c) {
+      const ab = { x: a.x - b.x, y: a.y - b.y };
+      const cb = { x: c.x - b.x, y: c.y - b.y };
+      const dot = ab.x * cb.x + ab.y * cb.y;
+      const magAB = Math.sqrt(ab.x ** 2 + ab.y ** 2);
+      const magCB = Math.sqrt(cb.x ** 2 + cb.y ** 2);
+      if (magAB === 0 || magCB === 0) return 0;
+      return Math.acos(Math.max(-1, Math.min(1, dot / (magAB * magCB)))) * (180 / Math.PI);
+    }
+
+    function detectState(landmarks) {
+      const lShoulder = landmarks[11];
+      const rShoulder = landmarks[12];
+      const lHip = landmarks[23];
+      const rHip = landmarks[24];
+      const lKnee = landmarks[25];
+      const rKnee = landmarks[26];
+
+      const shoulder = { x: (lShoulder.x + rShoulder.x) / 2, y: (lShoulder.y + rShoulder.y) / 2 };
+      const hip = { x: (lHip.x + rHip.x) / 2, y: (lHip.y + rHip.y) / 2 };
+      const knee = { x: (lKnee.x + rKnee.x) / 2, y: (lKnee.y + rKnee.y) / 2 };
+
+      const hipAngle = calcAngle(shoulder, hip, knee);
+
+      let state;
+      if (hipAngle > 160) state = "standing";
+      else if (hipAngle < 120) state = "sitting";
+      else state = "transitioning";
+
+      return { state, hipAngle };
+    }
+
+    // ========================
+    // NOTE GENERATION
+    // ========================
+    function spawnNote() {
+      const type = nextNoteType;
+      nextNoteType = (type === "stand") ? "sit" : "stand";
+
+      notes.push({
+        type: type, // "stand" or "sit"
+        y: 0,       // position 0 = top, 1 = bottom
+        active: true,
+        hit: false,
+        missed: false,
+        spawnTime: performance.now()
+      });
+    }
+
+    // ========================
+    // RHYTHM CANVAS DRAWING
+    // ========================
+    function initRhythmCanvas() {
+      rhythmCanvas = document.getElementById("rhythmCanvas");
+      const rect = rhythmCanvas.parentElement.getBoundingClientRect();
+      rhythmCanvas.width = rect.width;
+      rhythmCanvas.height = rect.height;
+      rhythmCtx = rhythmCanvas.getContext("2d");
+    }
+
+    function drawRhythmLane(dt) {
+      const W = rhythmCanvas.width;
+      const H = rhythmCanvas.height;
+      rhythmCtx.clearRect(0, 0, W, H);
+
+      // Background gradient
+      const bg = rhythmCtx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, "#0d0d20");
+      bg.addColorStop(1, "#1a1a35");
+      rhythmCtx.fillStyle = bg;
+      rhythmCtx.fillRect(0, 0, W, H);
+
+      // Lane lines
+      rhythmCtx.strokeStyle = "rgba(100,100,150,0.15)";
+      rhythmCtx.lineWidth = 1;
+      for (let x = W * 0.2; x <= W * 0.8; x += W * 0.2) {
+        rhythmCtx.beginPath();
+        rhythmCtx.moveTo(x, 0);
+        rhythmCtx.lineTo(x, H);
+        rhythmCtx.stroke();
+      }
+
+      // Judgment line
+      const judgeY = H * JUDGE_Y;
+      rhythmCtx.strokeStyle = "rgba(212,165,116,0.6)";
+      rhythmCtx.lineWidth = 3;
+      rhythmCtx.beginPath();
+      rhythmCtx.moveTo(W * 0.1, judgeY);
+      rhythmCtx.lineTo(W * 0.9, judgeY);
+      rhythmCtx.stroke();
+
+      // Judgment line glow
+      const glowGrad = rhythmCtx.createLinearGradient(0, judgeY - 15, 0, judgeY + 15);
+      glowGrad.addColorStop(0, "rgba(212,165,116,0)");
+      glowGrad.addColorStop(0.5, "rgba(212,165,116,0.15)");
+      glowGrad.addColorStop(1, "rgba(212,165,116,0)");
+      rhythmCtx.fillStyle = glowGrad;
+      rhythmCtx.fillRect(W * 0.1, judgeY - 15, W * 0.8, 30);
+
+      // Label on judgment line
+      rhythmCtx.fillStyle = "rgba(212,165,116,0.5)";
+      rhythmCtx.font = "12px sans-serif";
+      rhythmCtx.textAlign = "center";
+      rhythmCtx.fillText("判定线", W / 2, judgeY + 25);
+
+      // Draw notes
+      for (const note of notes) {
+        if (!note.active) continue;
+
+        // Move note down
+        note.y += NOTE_SPEED * (dt / 1000);
+
+        const noteY = note.y * H;
+        const noteX = W / 2;
+        const noteW = W * 0.5;
+        const noteH = 40;
+
+        // Note color
+        let color, label, glow;
+        if (note.type === "stand") {
+          color = "#4ecca3";
+          glow = "rgba(78,204,163,0.3)";
+          label = "站 STAND";
+        } else {
+          color = "#e94560";
+          glow = "rgba(233,69,96,0.3)";
+          label = "坐 SIT";
+        }
+
+        if (note.hit) {
+          // Hit animation - expand and fade
+          rhythmCtx.globalAlpha = Math.max(0, 1 - (note.y - JUDGE_Y) * 5);
+          color = "#ffd700";
+          glow = "rgba(255,215,0,0.4)";
+        }
+
+        // Note glow
+        rhythmCtx.fillStyle = glow;
+        rhythmCtx.beginPath();
+        rhythmCtx.roundRect(noteX - noteW / 2 - 5, noteY - noteH / 2 - 5, noteW + 10, noteH + 10, 12);
+        rhythmCtx.fill();
+
+        // Note body
+        rhythmCtx.fillStyle = color;
+        rhythmCtx.beginPath();
+        rhythmCtx.roundRect(noteX - noteW / 2, noteY - noteH / 2, noteW, noteH, 8);
+        rhythmCtx.fill();
+
+        // Note label
+        rhythmCtx.fillStyle = "#fff";
+        rhythmCtx.font = "bold 16px sans-serif";
+        rhythmCtx.textAlign = "center";
+        rhythmCtx.textBaseline = "middle";
+        rhythmCtx.fillText(label, noteX, noteY);
+
+        rhythmCtx.globalAlpha = 1;
+
+        // Miss detection - note passed judgment line too far
+        if (!note.hit && note.y > JUDGE_Y + NOTE_SPEED * GOOD_WINDOW) {
+          note.missed = true;
+          note.active = false;
+          combo = 0;
+          playMissSound();
+          showFeedback("MISS", "#888");
+        }
+
+        // Remove notes that are off screen
+        if (note.y > 1.2) {
+          note.active = false;
+        }
+      }
+
+      // Clean up inactive notes
+      while (notes.length > 0 && !notes[0].active) {
+        notes.shift();
+      }
+    }
+
+    // ========================
+    // HIT DETECTION (action vs nearest note)
+    // ========================
+    function tryHitNote(actionType) {
+      // Find the closest active, unhit note of matching type near the judgment line
+      let bestNote = null;
+      let bestDist = Infinity;
+
+      for (const note of notes) {
+        if (!note.active || note.hit || note.type !== actionType) continue;
+        const dist = Math.abs(note.y - JUDGE_Y);
+        const timeWindow = dist / NOTE_SPEED; // approximate seconds from judge line
+        if (timeWindow < GOOD_WINDOW && dist < bestDist) {
+          bestDist = dist;
+          bestNote = note;
+        }
+      }
+
+      if (!bestNote) return;
+
+      const timeFromJudge = bestDist / NOTE_SPEED;
+
+      bestNote.hit = true;
+
+      if (timeFromJudge < PERFECT_WINDOW * 0.5) {
+        // Perfect
+        score += 100 * (1 + combo * 0.1);
+        combo++;
+        showFeedback("PERFECT!", "#ffd700");
+        lastRating = "Perfect";
+        playHitSound();
+      } else if (timeFromJudge < PERFECT_WINDOW) {
+        // Great
+        score += 70 * (1 + combo * 0.1);
+        combo++;
+        showFeedback("GREAT!", "#4ecca3");
+        lastRating = "Great";
+        playHitSound();
+      } else {
+        // Good
+        score += 40;
+        combo++;
+        showFeedback("GOOD", "#d4a574");
+        lastRating = "Good";
+      }
+
+      if (combo > maxCombo) maxCombo = combo;
+
+      // Trigger music
+      if (actionType === "stand") {
+        playStandSound();
+      } else {
+        playSitSound();
+      }
+
+      // After a short delay, deactivate the hit note
+      setTimeout(() => { bestNote.active = false; }, 500);
+    }
+
+    // ========================
+    // FEEDBACK
+    // ========================
+    function showFeedback(text, color) {
+      const el = document.getElementById("hitFeedback");
+      el.textContent = text;
+      el.style.color = color;
+      el.style.opacity = 1;
+      setTimeout(() => { el.style.opacity = 0; }, 600);
+    }
+
+    // ========================
+    // MAIN GAME LOOP
+    // ========================
+    let lastFrameTime = 0;
+
+    function startGameLoop() {
+      gameStartTime = performance.now();
+      nextNoteTime = gameStartTime + 2000; // first note after 2s
+      initRhythmCanvas();
+      startBGM();
+      lastFrameTime = performance.now();
+      gameLoop();
+    }
+
+    function gameLoop() {
+      animationId = requestAnimationFrame(gameLoop);
+
+      const now = performance.now();
+      const dt = now - lastFrameTime;
+      lastFrameTime = now;
+      gameTime = now - gameStartTime;
+
+      // Spawn notes on beat
+      if (now >= nextNoteTime) {
+        spawnNote();
+        nextNoteTime += BEAT_INTERVAL;
+      }
+
+      // Pose detection
+      if (poseLandmarker && video && video.readyState >= 2) {
+        if (lastVideoTime !== video.currentTime) {
+          lastVideoTime = video.currentTime;
+
+          const results = poseLandmarker.detectForVideo(video, now);
+
+          poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+
+          if (results.landmarks && results.landmarks.length > 0) {
+            const landmarks = results.landmarks[0];
+
+            // Draw skeleton
+            drawingUtils.drawLandmarks(landmarks, {
+              radius: 3, color: "#d4a574", fillColor: "#d4a574"
+            });
+            drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
+              color: "#4ecca3", lineWidth: 2
+            });
+
+            // Detect sit/stand
+            const detection = detectState(landmarks);
+            previousState = currentState;
+            if (detection.state !== "transitioning") {
+              currentState = detection.state;
+            }
+
+            // Check for transitions
+            if (previousState === "sitting" && currentState === "standing") {
+              transitionCount++;
+              tryHitNote("stand");
+            } else if (previousState === "standing" && currentState === "sitting") {
+              transitionCount++;
+              tryHitNote("sit");
+            }
+
+            // Update UI
+            document.getElementById("stateDisplay").textContent =
+              currentState === "standing" ? "站立" :
+              currentState === "sitting" ? "坐下" : "...";
+            document.getElementById("hipDisplay").textContent = detection.hipAngle.toFixed(0) + "°";
+          }
+        }
+      }
+
+      // Draw rhythm lane
+      drawRhythmLane(dt);
+
+      // Update info panel
+      document.getElementById("scoreDisplay").textContent = Math.floor(score);
+      document.getElementById("comboDisplay").textContent = combo;
+      document.getElementById("transDisplay").textContent = Math.floor(transitionCount / 2);
+      document.getElementById("ratingDisplay").textContent = lastRating || "--";
+
+      // Update action cue - show what the next note expects
+      const nextActive = notes.find(n => n.active && !n.hit);
+      if (nextActive) {
+        document.getElementById("actionCue").textContent =
+          nextActive.type === "stand" ? "准备站起来..." : "准备坐下...";
+        document.getElementById("actionCue").style.color =
+          nextActive.type === "stand" ? "#4ecca3" : "#e94560";
+      }
+    }
+
+    // ========================
+    // START
+    // ========================
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      await Tone.start();
+      initAudio();
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("gameArea").style.display = "block";
+      startCamera();
+    });
+
+    // Init
+    enumerateCameras();
+    initPose();
+
+  </script>
+</body>
+</html>
