@@ -582,41 +582,118 @@
     // =====================
     // NOTES
     // =====================
-    function spawnNote() {
-      const config = phaseConfig[phase];
-      const types = config.noteTypes;
-      const type = types[Math.floor(Math.random() * types.length)];
+    // Chart-based notes (times in seconds from game start)
+    // duration in seconds: 0 = short note, >0 = long hold note
+    // Song loops every 8 bars = 8 * (60/70 * 4) ≈ 27.4 seconds
+    const CHART = [
+      // Phase 1: Seated - 0-30s - gentle left/right weight shifts
+      { t: 4,   type: "left",  lane: 0, dur: 0 },
+      { t: 7,   type: "right", lane: 2, dur: 0 },
+      { t: 10,  type: "left",  lane: 0, dur: 3 },  // hold 3s
+      { t: 14,  type: "right", lane: 2, dur: 3 },
+      { t: 18,  type: "left",  lane: 0, dur: 0 },
+      { t: 20,  type: "right", lane: 2, dur: 0 },
+      { t: 22,  type: "left",  lane: 0, dur: 4 },
+      { t: 27,  type: "right", lane: 2, dur: 0 },
 
-      let lane;
-      if (type === "left") lane = 0;
-      else if (type === "right") lane = 2;
-      else if (type === "reach") lane = 1;
-      else if (type === "stepL") lane = 0;
-      else if (type === "stepR") lane = 2;
-      else lane = 1;
+      // Phase 2: Standing - 30-60s - add reach (center)
+      { t: 32,  type: "reach", lane: 1, dur: 0 },
+      { t: 35,  type: "left",  lane: 0, dur: 0 },
+      { t: 38,  type: "right", lane: 2, dur: 0 },
+      { t: 41,  type: "reach", lane: 1, dur: 3 },  // hold reach
+      { t: 45,  type: "left",  lane: 0, dur: 2 },
+      { t: 48,  type: "right", lane: 2, dur: 2 },
+      { t: 51,  type: "reach", lane: 1, dur: 0 },
+      { t: 54,  type: "left",  lane: 0, dur: 0 },
+      { t: 56,  type: "right", lane: 2, dur: 0 },
 
-      notes.push({
-        type: type,
-        lane: lane, // 0=left, 1=center, 2=right
-        z: 0,       // 0=spawn at horizon, 1=hit line at bottom
-        hit: false,
-        active: true,
-        spawnTime: performance.now()
-      });
+      // Phase 3: Stepping - 60-90s - add left/right foot steps
+      { t: 62,  type: "stepL", lane: 0, dur: 0 },
+      { t: 65,  type: "stepR", lane: 2, dur: 0 },
+      { t: 68,  type: "stepL", lane: 0, dur: 0 },
+      { t: 71,  type: "stepR", lane: 2, dur: 0 },
+      { t: 74,  type: "reach", lane: 1, dur: 0 },
+      { t: 77,  type: "stepL", lane: 0, dur: 0 },
+      { t: 79,  type: "stepR", lane: 2, dur: 0 },
+      { t: 82,  type: "left",  lane: 0, dur: 2 },
+      { t: 85,  type: "right", lane: 2, dur: 2 },
+      { t: 88,  type: "stepL", lane: 0, dur: 0 },
+
+      // Phase 4: Advanced - 90-120s - single leg holds + combinations
+      { t: 92,  type: "stepL", lane: 0, dur: 0 },
+      { t: 94,  type: "stepR", lane: 2, dur: 0 },
+      { t: 97,  type: "left",  lane: 0, dur: 5 },  // single leg hold
+      { t: 103, type: "right", lane: 2, dur: 5 },
+      { t: 110, type: "stepL", lane: 0, dur: 0 },
+      { t: 112, type: "stepR", lane: 2, dur: 0 },
+      { t: 114, type: "reach", lane: 1, dur: 0 },
+      { t: 117, type: "left",  lane: 0, dur: 4 },
+    ];
+
+    let chartIndex = 0;
+    const NOTE_LEAD_TIME = 3.0; // seconds: how long notes travel from spawn to hit line
+
+    function spawnFromChart(gameTimeSec) {
+      while (chartIndex < CHART.length &&
+             CHART[chartIndex].t - NOTE_LEAD_TIME <= gameTimeSec) {
+        const c = CHART[chartIndex];
+        notes.push({
+          type: c.type,
+          lane: c.lane,
+          z: 0,
+          hit: false,
+          active: true,
+          dur: c.dur || 0,
+          hitTime: c.t,
+          endTime: c.t + (c.dur || 0),
+          holdScoring: false,
+          spawnTime: performance.now()
+        });
+        chartIndex++;
+      }
+    }
+
+    const HIT_Z = 0.92;
+
+    function zToScreen(z) {
+      const horizonY = H * 0.35;
+      return horizonY + (H - horizonY) * z * z;
+    }
+
+    function laneOffsetAt(z, lane) {
+      const pathBottomW = W * 1.2;
+      const pathTopW = W * 0.08;
+      const laneW = pathTopW + (pathBottomW - pathTopW) * z * z;
+      return (lane - 1) * (laneW / 3);
+    }
+
+    function noteColor(type) {
+      switch (type) {
+        case "left": return { color: "#4ecca3", glow: "rgba(78,204,163,0.5)", label: "←" };
+        case "right": return { color: "#4ecca3", glow: "rgba(78,204,163,0.5)", label: "→" };
+        case "reach": return { color: "#ffd700", glow: "rgba(255,215,0,0.5)", label: "↓" };
+        case "stepL": return { color: "#e94560", glow: "rgba(233,69,96,0.5)", label: "L" };
+        case "stepR": return { color: "#e94560", glow: "rgba(233,69,96,0.5)", label: "R" };
+        default: return { color: "#a78bfa", glow: "rgba(167,139,250,0.5)", label: "◉" };
+      }
+    }
+
+    function playerInLane(lane) {
+      if (lane === 0) return player.targetX < 0.35;
+      if (lane === 2) return player.targetX > 0.65;
+      return player.targetX >= 0.35 && player.targetX <= 0.65;
     }
 
     function drawNotes(dt) {
-      const horizonY = H * 0.35;
       const centerX = W / 2;
       const pathBottomW = W * 1.2;
       const pathTopW = W * 0.08;
-      const hitZ = 0.92;
 
       gameCtx.clearRect(0, 0, W, H);
 
       // Draw hit line
-      const hitY = horizonY + (H - horizonY) * hitZ * hitZ;
-      const hitLineW = pathTopW + (pathBottomW - pathTopW) * hitZ * hitZ;
+      const hitY = zToScreen(HIT_Z);
+      const hitLineW = pathTopW + (pathBottomW - pathTopW) * HIT_Z * HIT_Z;
       gameCtx.strokeStyle = "rgba(212,165,116,0.8)";
       gameCtx.lineWidth = 4;
       gameCtx.shadowColor = "#d4a574";
@@ -627,39 +704,91 @@
       gameCtx.stroke();
       gameCtx.shadowBlur = 0;
 
-      // Update and draw notes
+      // Draw lane highlight for player position (glow of current lane)
+      for (let ln = 0; ln < 3; ln++) {
+        if (!playerInLane(ln)) continue;
+        const zLow = 0.7, zHigh = HIT_Z;
+        const yLow = zToScreen(zLow);
+        const yHigh = zToScreen(zHigh);
+        const offLow = laneOffsetAt(zLow, ln);
+        const offHigh = laneOffsetAt(zHigh, ln);
+        const wLow = (pathTopW + (pathBottomW - pathTopW) * zLow * zLow) / 3;
+        const wHigh = (pathTopW + (pathBottomW - pathTopW) * zHigh * zHigh) / 3;
+        gameCtx.fillStyle = "rgba(212,165,116,0.12)";
+        gameCtx.beginPath();
+        gameCtx.moveTo(centerX + offLow - wLow/2, yLow);
+        gameCtx.lineTo(centerX + offLow + wLow/2, yLow);
+        gameCtx.lineTo(centerX + offHigh + wHigh/2, yHigh);
+        gameCtx.lineTo(centerX + offHigh - wHigh/2, yHigh);
+        gameCtx.closePath();
+        gameCtx.fill();
+      }
+
+      const gtSec = gameTime / 1000;
+
       for (const note of notes) {
         if (!note.active) continue;
 
-        note.z += 0.00010 * speed * dt;
+        // Position based on time to hit
+        const timeToHit = note.hitTime - gtSec;
+        note.z = HIT_Z - (timeToHit / NOTE_LEAD_TIME) * HIT_Z;
 
-        const t = note.z;
-        const noteY = horizonY + (H - horizonY) * t * t;
-        const laneW = pathTopW + (pathBottomW - pathTopW) * t * t;
-        const laneOffset = (note.lane - 1) * (laneW / 3);
-        const noteX = centerX + laneOffset;
+        const isLong = note.dur > 0;
+        const { color, glow, label } = noteColor(note.type);
+
+        // Long note: draw tail (segment from note head to end time position)
+        if (isLong) {
+          const endTimeToHit = note.endTime - gtSec;
+          const endZ = HIT_Z - (endTimeToHit / NOTE_LEAD_TIME) * HIT_Z;
+          const startZ = Math.max(0, Math.min(HIT_Z, note.z));
+          const tailZ = Math.max(startZ, Math.min(HIT_Z + 0.05, endZ));
+
+          // Draw gradient tail along path
+          const steps = 12;
+          for (let i = 0; i < steps; i++) {
+            const za = startZ + (tailZ - startZ) * (i / steps);
+            const zb = startZ + (tailZ - startZ) * ((i + 1) / steps);
+            if (zb > HIT_Z + 0.03) continue;
+            const ya = zToScreen(za);
+            const yb = zToScreen(zb);
+            const xa = centerX + laneOffsetAt(za, note.lane);
+            const xb = centerX + laneOffsetAt(zb, note.lane);
+            const wa = 10 + za * 40;
+            const wb = 10 + zb * 40;
+            const alpha = 0.4 + za * 0.3;
+            gameCtx.fillStyle = color.replace("#", "").length === 6
+              ? `rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},${alpha})`
+              : glow;
+            gameCtx.beginPath();
+            gameCtx.moveTo(xa - wa, ya);
+            gameCtx.lineTo(xa + wa, ya);
+            gameCtx.lineTo(xb + wb, yb);
+            gameCtx.lineTo(xb - wb, yb);
+            gameCtx.closePath();
+            gameCtx.fill();
+          }
+        }
+
+        // Skip drawing head if past hit line and already hit/ended
+        if (note.z < -0.1) continue;
+
+        const t = Math.max(0, Math.min(1, note.z));
+        const noteY = zToScreen(t);
+        const noteX = centerX + laneOffsetAt(t, note.lane);
         const noteSize = 15 + t * 50;
 
-        let color, glow, label;
-        switch (note.type) {
-          case "left": color = "#4ecca3"; glow = "rgba(78,204,163,0.5)"; label = "←"; break;
-          case "right": color = "#4ecca3"; glow = "rgba(78,204,163,0.5)"; label = "→"; break;
-          case "reach": color = "#ffd700"; glow = "rgba(255,215,0,0.5)"; label = "↓"; break;
-          case "stepL": color = "#e94560"; glow = "rgba(233,69,96,0.5)"; label = "L"; break;
-          case "stepR": color = "#e94560"; glow = "rgba(233,69,96,0.5)"; label = "R"; break;
-          case "hold": color = "#a78bfa"; glow = "rgba(167,139,250,0.5)"; label = "◉"; break;
+        let drawColor = color;
+        if (note.hit && !isLong) {
+          gameCtx.globalAlpha = Math.max(0, 1 - (note.z - HIT_Z) * 8);
+          drawColor = "#fff";
+        }
+        if (note.holdScoring) {
+          drawColor = "#ffd700";
         }
 
-        if (note.hit) {
-          gameCtx.globalAlpha = Math.max(0, 1 - (note.z - hitZ) * 8);
-          color = "#fff";
-        }
-
-        // Glow
-        gameCtx.shadowColor = color;
+        gameCtx.shadowColor = drawColor;
         gameCtx.shadowBlur = 25 * t;
 
-        // Note body (diamond shape)
         gameCtx.fillStyle = glow;
         gameCtx.beginPath();
         gameCtx.moveTo(noteX, noteY - noteSize);
@@ -669,7 +798,7 @@
         gameCtx.closePath();
         gameCtx.fill();
 
-        gameCtx.fillStyle = color;
+        gameCtx.fillStyle = drawColor;
         gameCtx.beginPath();
         gameCtx.moveTo(noteX, noteY - noteSize * 0.7);
         gameCtx.lineTo(noteX + noteSize * 0.7, noteY);
@@ -678,18 +807,57 @@
         gameCtx.closePath();
         gameCtx.fill();
 
-        // Label
         gameCtx.shadowBlur = 0;
         gameCtx.fillStyle = "#0a0a15";
         gameCtx.font = `bold ${Math.floor(12 + t * 20)}px sans-serif`;
         gameCtx.textAlign = "center";
         gameCtx.textBaseline = "middle";
         gameCtx.fillText(label, noteX, noteY);
-
         gameCtx.globalAlpha = 1;
+      }
 
-        // Miss detection
-        if (!note.hit && note.z > hitZ + 0.05) {
+      // === HIT / MISS DETECTION ===
+      for (const note of notes) {
+        if (!note.active) continue;
+        const timeToHit = note.hitTime - gtSec;
+        const timeToEnd = note.endTime - gtSec;
+        const isLong = note.dur > 0;
+
+        // Auto-hit when note reaches hit line AND player is in correct lane
+        // For short notes: single trigger
+        if (!note.hit && timeToHit <= 0.15 && timeToHit >= -0.15) {
+          if (playerInLane(note.lane)) {
+            note.hit = true;
+            hits++;
+            combo++;
+            if (combo > maxCombo) maxCombo = combo;
+            const rating = Math.abs(timeToHit) < 0.05 ? "PERFECT" : "GREAT";
+            const color = rating === "PERFECT" ? "#ffd700" : "#4ecca3";
+            const pts = rating === "PERFECT" ? 100 : 70;
+            score += pts * (1 + combo * 0.05);
+            showFeedback(rating, color);
+            playHitSound(note.type);
+            if (isLong) note.holdScoring = true;
+          }
+        }
+
+        // Long note continuous scoring while player holds lane
+        if (isLong && note.hit && timeToEnd > 0) {
+          if (playerInLane(note.lane)) {
+            note.holdScoring = true;
+            score += 20 * dt / 1000; // 20 pts/sec while holding
+          } else {
+            note.holdScoring = false;
+          }
+        }
+
+        // End of long note
+        if (isLong && timeToEnd < -0.1) {
+          note.active = false;
+        }
+
+        // Short note missed (past hit window and not hit)
+        if (!isLong && !note.hit && timeToHit < -0.25) {
           note.active = false;
           misses++;
           combo = 0;
@@ -697,13 +865,25 @@
           showFeedback("MISS", "#888");
         }
 
-        if (note.z > 1.1) note.active = false;
+        // Short note cleanup after hit
+        if (!isLong && note.hit && timeToHit < -0.4) {
+          note.active = false;
+        }
+
+        // Long note never started (missed entry)
+        if (isLong && !note.hit && timeToHit < -0.25) {
+          note.active = false;
+          misses++;
+          combo = 0;
+          playMissSound();
+          showFeedback("MISS", "#888");
+        }
       }
 
       // Clean up
       notes = notes.filter(n => n.active);
 
-      // Update player x position smoothing (was inside drawPlayer)
+      // Update player x position smoothing
       player.x += (player.targetX - player.x) * 0.15;
     }
 
@@ -1303,46 +1483,114 @@
     // =====================
     // AUDIO
     // =====================
-    function initAudio() {
-      bgSynth = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: "sine" },
-        envelope: { attack: 2, decay: 1, sustain: 0.7, release: 3 }
-      }).toDestination();
-      bgSynth.volume.value = -22;
+    let pianoSynth, padSynth, bassSynth;
+    const SONG_BPM = 70;
 
+    function initAudio() {
+      // Reverb for atmosphere
+      const reverb = new Tone.Reverb({ decay: 4, wet: 0.35 }).toDestination();
+
+      // Piano - main melody
+      pianoSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.005, decay: 0.5, sustain: 0.2, release: 1.2 }
+      }).connect(reverb);
+      pianoSynth.volume.value = -10;
+
+      // Pad - sustained chords
+      padSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "sine" },
+        envelope: { attack: 1.5, decay: 0.5, sustain: 0.7, release: 3 }
+      }).connect(reverb);
+      padSynth.volume.value = -22;
+
+      // Bass
+      bassSynth = new Tone.Synth({
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.05, decay: 0.4, sustain: 0.5, release: 1.5 }
+      }).toDestination();
+      bassSynth.volume.value = -16;
+
+      // Hit confirmation sound
       hitSynth = new Tone.PolySynth(Tone.Synth, {
         oscillator: { type: "triangle" },
-        envelope: { attack: 0.01, decay: 0.3, sustain: 0.2, release: 0.5 }
+        envelope: { attack: 0.005, decay: 0.2, sustain: 0.1, release: 0.4 }
       }).toDestination();
-      hitSynth.volume.value = -8;
+      hitSynth.volume.value = -14;
 
       stepSynth = new Tone.MembraneSynth().toDestination();
-      stepSynth.volume.value = -10;
+      stepSynth.volume.value = -14;
 
       missSynth = new Tone.NoiseSynth({
         noise: { type: "pink" },
         envelope: { attack: 0.01, decay: 0.15, sustain: 0, release: 0.1 }
       }).toDestination();
-      missSynth.volume.value = -25;
+      missSynth.volume.value = -28;
     }
 
+    // Original ballad: Am - F - C - G progression in A minor, slow 70 BPM
+    // Each chord is 1 bar (4 beats). 8 bars total = 1 verse, loops.
+    // Bass notes on beat 1+3, melody flows over chords.
     function startBGM() {
       if (bgPlaying) return;
       bgPlaying = true;
-      const chords = [
-        ["C3", "G3", "C4", "E4"],
-        ["A2", "E3", "A3", "C4"],
-        ["F2", "C3", "F3", "A3"],
-        ["G2", "D3", "G3", "B3"]
+
+      Tone.Transport.bpm.value = SONG_BPM;
+      Tone.Transport.start();
+
+      // Chord progression (8 bars = 1 loop)
+      // Am F C G | Am F C G
+      const chordProg = [
+        ["A3", "C4", "E4"],   // Am
+        ["F3", "A3", "C4"],   // F
+        ["C3", "E3", "G3"],   // C
+        ["G3", "B3", "D4"],   // G
+        ["A3", "C4", "E4"],   // Am
+        ["F3", "A3", "C4"],   // F
+        ["C3", "E3", "G3"],   // C
+        ["G3", "B3", "D4"],   // G
       ];
-      let ci = 0;
-      const loop = () => {
-        if (!bgPlaying) return;
-        bgSynth.triggerAttackRelease(chords[ci], 3.5);
-        ci = (ci + 1) % chords.length;
-        setTimeout(loop, 3500);
-      };
-      loop();
+      const bassProg = ["A2", "F2", "C2", "G2", "A2", "F2", "C2", "G2"];
+
+      // Original melody on top - simple pentatonic phrases (8 bars)
+      // Each entry: [time in bars:beats:sixteenth, note, duration]
+      const melody = [
+        ["0:0:0", "E4", "2n"],
+        ["0:2:0", "G4", "4n"],
+        ["0:3:0", "A4", "4n"],
+        ["1:0:0", "G4", "2n"],
+        ["1:2:0", "F4", "2n"],
+        ["2:0:0", "E4", "4n"],
+        ["2:1:0", "G4", "4n"],
+        ["2:2:0", "C5", "2n"],
+        ["3:0:0", "B4", "2n"],
+        ["3:2:0", "G4", "2n"],
+        ["4:0:0", "E4", "2n"],
+        ["4:2:0", "A4", "4n"],
+        ["4:3:0", "C5", "4n"],
+        ["5:0:0", "B4", "2n"],
+        ["5:2:0", "A4", "2n"],
+        ["6:0:0", "G4", "4n"],
+        ["6:1:0", "E4", "4n"],
+        ["6:2:0", "F4", "2n"],
+        ["7:0:0", "E4", "1n"],
+      ];
+
+      // Schedule chords
+      Tone.Transport.scheduleRepeat(time => {
+        const bar = Math.floor(Tone.Transport.position.toString().split(":")[0]) % 8;
+        padSynth.triggerAttackRelease(chordProg[bar], "1m", time);
+        bassSynth.triggerAttackRelease(bassProg[bar] + "", "2n", time);
+        bassSynth.triggerAttackRelease(bassProg[bar] + "", "2n", time + Tone.Time("2n").toSeconds());
+      }, "1m", "0:0:0");
+
+      // Schedule melody as a Part (loops every 8 bars)
+      const part = new Tone.Part((time, value) => {
+        pianoSynth.triggerAttackRelease(value.note, value.dur, time, 0.7);
+      }, melody.map(m => ({ time: m[0], note: m[1], dur: m[2] })));
+      part.loop = true;
+      part.loopEnd = "8m";
+      part.start(0);
     }
 
     function playHitSound(type) {
@@ -1546,21 +1794,27 @@
       lastFrameTime = now;
       gameTime = now - gameStartTime;
 
-      // Spawn notes
-      const beatInterval = (60000 / baseBPM) / speed;
-      if (now >= nextNoteTime) {
-        spawnNote();
-        nextNoteTime = now + beatInterval;
+      // Spawn notes from chart
+      const gameTimeSec = gameTime / 1000;
+      spawnFromChart(gameTimeSec);
+
+      // Determine current phase from chart time
+      let newPhase = 1;
+      if (gameTimeSec >= 90) newPhase = 4;
+      else if (gameTimeSec >= 60) newPhase = 3;
+      else if (gameTimeSec >= 30) newPhase = 2;
+      if (newPhase !== phase) {
+        phase = newPhase;
+        const cfg = phaseConfig[phase];
+        if (cfg.playerPosture === "standing" && player.posture === "sitting") {
+          player.posture = "standing";
+        }
+        showPhaseTransition(cfg.cnName, cfg.bbs);
+        document.getElementById("phaseName").textContent = cfg.name;
+        document.getElementById("phaseBBS").textContent = cfg.bbs;
+        document.getElementById("hudPhase").textContent = cfg.cnName;
       }
-
-      // Check phase transition
-      checkPhase();
-
-      // Gradually increase speed within phase (slow for stroke patients)
-      const phaseTime = gameTime - phaseStartTime;
-      const phaseDur = phaseConfig[phase].duration;
-      const phaseProg = Math.min(1, phaseTime / phaseDur);
-      speed = (1 + (phase - 1) * 0.15) + phaseProg * 0.2;
+      speed = 1.0; // chart-based, fixed travel time
 
       // Draw
       drawBackground(dt);
