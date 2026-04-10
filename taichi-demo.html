@@ -1487,22 +1487,19 @@
     const SONG_BPM = 70;
 
     function initAudio() {
-      // Reverb for atmosphere
-      const reverb = new Tone.Reverb({ decay: 4, wet: 0.35 }).toDestination();
-
-      // Piano - main melody
+      // Piano - main melody (direct to destination, no reverb to avoid async issues)
       pianoSynth = new Tone.PolySynth(Tone.Synth, {
         oscillator: { type: "triangle" },
         envelope: { attack: 0.005, decay: 0.5, sustain: 0.2, release: 1.2 }
-      }).connect(reverb);
-      pianoSynth.volume.value = -10;
+      }).toDestination();
+      pianoSynth.volume.value = -8;
 
       // Pad - sustained chords
       padSynth = new Tone.PolySynth(Tone.Synth, {
         oscillator: { type: "sine" },
         envelope: { attack: 1.5, decay: 0.5, sustain: 0.7, release: 3 }
-      }).connect(reverb);
-      padSynth.volume.value = -22;
+      }).toDestination();
+      padSynth.volume.value = -18;
 
       // Bass
       bassSynth = new Tone.Synth({
@@ -1576,13 +1573,15 @@
         ["7:0:0", "E4", "1n"],
       ];
 
-      // Schedule chords
+      // Schedule chords - use closure counter for simpler bar tracking
+      let barIdx = 0;
       Tone.Transport.scheduleRepeat(time => {
-        const bar = Math.floor(Tone.Transport.position.toString().split(":")[0]) % 8;
+        const bar = barIdx % 8;
         padSynth.triggerAttackRelease(chordProg[bar], "1m", time);
-        bassSynth.triggerAttackRelease(bassProg[bar] + "", "2n", time);
-        bassSynth.triggerAttackRelease(bassProg[bar] + "", "2n", time + Tone.Time("2n").toSeconds());
-      }, "1m", "0:0:0");
+        bassSynth.triggerAttackRelease(bassProg[bar], "2n", time);
+        bassSynth.triggerAttackRelease(bassProg[bar], "2n", time + Tone.Time("2n").toSeconds());
+        barIdx++;
+      }, "1m", 0);
 
       // Schedule melody as a Part (loops every 8 bars)
       const part = new Tone.Part((time, value) => {
