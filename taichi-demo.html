@@ -310,7 +310,8 @@
       <span class="key">↓</span> 弯腰<br><br>
       <b style="color:#d4a574;">手机触屏：</b><br>
       点击屏幕<b>左/右半边</b> = 左/右移动<br>
-      <b>上滑</b> = 站起来/抬脚 · <b>下滑</b> = 弯腰<br><br>
+      <b>左半边上滑</b> = 抬左脚(L) · <b>右半边上滑</b> = 抬右脚(R)<br>
+      <b>下滑</b> = 弯腰<br><br>
       <span style="color:#4ecca3;">游戏会自动从坐位→站位→踏步逐步进阶</span>
     </div>
     <button id="startBtn">开始演示</button>
@@ -1459,10 +1460,11 @@
       if (absDy > 40 && absDy > absDx) {
         // Vertical swipe
         if (dy < 0) {
-          // Swipe up - stand / step
+          // Swipe up - stand / step (left half = L, right half = R)
           if (phase >= 3) {
-            player.legLifted = player.legLifted === "left" ? "right" : "left";
-            tryHit(player.legLifted === "left" ? "stepL" : "stepR");
+            const isLeftSide = touchStartX < window.innerWidth / 2;
+            player.legLifted = isLeftSide ? "left" : "right";
+            tryHit(isLeftSide ? "stepL" : "stepR");
             setTimeout(() => { player.legLifted = null; }, 400);
           } else {
             if (player.posture === "sitting") {
