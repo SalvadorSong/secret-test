@@ -1501,19 +1501,26 @@
     let currentBar = 0;
 
     function initAudio() {
-      // Piano - main melody (direct to destination, no reverb to avoid async issues)
-      pianoSynth = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: "triangle" },
-        envelope: { attack: 0.005, decay: 0.5, sustain: 0.2, release: 1.2 }
-      }).toDestination();
-      pianoSynth.volume.value = -8;
-
-      // Pad - sustained chords
-      padSynth = new Tone.PolySynth(Tone.Synth, {
+      // Piano - use FMSynth for distinct bell-piano timbre (very different from plain triangle)
+      pianoSynth = new Tone.PolySynth(Tone.FMSynth, {
+        harmonicity: 3,
+        modulationIndex: 10,
         oscillator: { type: "sine" },
-        envelope: { attack: 1.5, decay: 0.5, sustain: 0.7, release: 3 }
+        envelope: { attack: 0.005, decay: 1.2, sustain: 0.0, release: 0.8 },
+        modulation: { type: "square" },
+        modulationEnvelope: { attack: 0.002, decay: 0.5, sustain: 0, release: 0.5 }
       }).toDestination();
-      padSynth.volume.value = -18;
+      pianoSynth.volume.value = -10;
+
+      // Pad - warm AM strings using AMSynth
+      padSynth = new Tone.PolySynth(Tone.AMSynth, {
+        harmonicity: 2,
+        oscillator: { type: "sine" },
+        envelope: { attack: 1.5, decay: 0.8, sustain: 0.6, release: 3 },
+        modulation: { type: "sawtooth" },
+        modulationEnvelope: { attack: 1.0, decay: 0.5, sustain: 0.5, release: 2 }
+      }).toDestination();
+      padSynth.volume.value = -20;
 
       // Bass
       bassSynth = new Tone.Synth({
@@ -1543,7 +1550,8 @@
     // Each chord is 1 bar (4 beats). 8 bars total = 1 verse, loops.
     // Bass notes on beat 1+3, melody flows over chords.
     function startBGM() {
-      if (bgPlaying) return;
+      // Reset any previous transport state
+      try { Tone.Transport.stop(); Tone.Transport.cancel(0); } catch(e) {}
       bgPlaying = true;
 
       Tone.Transport.bpm.value = SONG_BPM;
