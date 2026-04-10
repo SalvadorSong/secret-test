@@ -1427,12 +1427,6 @@
 
     window.addEventListener("keyup", e => {
       keys[e.key] = false;
-      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-        setTimeout(() => {
-          player.targetX = 0.5;
-          document.getElementById("hudPos").textContent = "中";
-        }, 200);
-      }
     });
 
     // ===== TOUCH CONTROLS =====
@@ -1489,10 +1483,6 @@
           document.getElementById("hudPos").textContent = "右";
           tryHit("right");
         }
-        setTimeout(() => {
-          player.targetX = 0.5;
-          document.getElementById("hudPos").textContent = "中";
-        }, 400);
       } else {
         // Tap - left or right half
         if (touchStartX < window.innerWidth / 2) {
@@ -1504,10 +1494,6 @@
           document.getElementById("hudPos").textContent = "右";
           tryHit("right");
         }
-        setTimeout(() => {
-          player.targetX = 0.5;
-          document.getElementById("hudPos").textContent = "中";
-        }, 400);
       }
       e.preventDefault();
     }
